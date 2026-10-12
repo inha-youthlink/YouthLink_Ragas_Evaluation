@@ -131,6 +131,67 @@
 | 채점 프롬프트 | `answer_relevancy`는 고정 한국어 프롬프트 (영어 기본 프롬프트는 한국어 답변에서 영어 질문을 만들어 유사도가 낮아짐). LLM 번역(adapt)은 실행마다 문구가 달라져 쓰지 않음 |
 | 프롬프트 버전 | `run.metadata.scoring_prompt` (`answer_relevancy-ko-v1`). 버전이 다른 run은 재개 불가, 보고서 모드별 비교에서 따로 집계 |
 
+## Answer Coverage 추가 계획 (예정)
+
+`factual_correctness`는 정답 밖 내용을 사실이어도 감점한다. 정답 내용을 다 말했는지만 보는 지표를 별도 컬럼으로 추가한다. 기존 지표는 유지한다.
+
+| 근거 (golden_v1 재채점 실험, 3회씩) | 정답 그대로 | 정답 + 원문 사실 2개 | 정답 + 원문 사실 4개 |
+| --- | --- | --- | --- |
+| `factual_correctness` | 1.0 | 0.67 ~ 0.88 | 0.57 ~ 0.80 |
+| 커버리지 (정답 → 답변만) | 1.0 | 1.0 | 1.0 |
+
+- 답변 쪽 주장에 정답에 없는 사업명이 붙으면 `factual_correctness` 답변 쪽 판정이 전부 X → F1 0 (092, 102). 커버리지는 정답 쪽 판정만 써서 영향 없음
+- ragas `mode="recall"`은 tp를 답변 쪽 판정에서 가져와(`metric.py`) 같은 문제가 남아 쓰지 않음
+
+| 항목 | 값 |
+| --- | --- |
+| 지표명 | `answer_coverage` |
+| 질문 | 답변이 정답(`ground_truth`)의 사실을 모두 말했는가 |
+| 입력 | `response`, `reference` |
+| 계산 | ① `reference`를 주장 단위로 분해 ② 각 주장이 `response`에서 직접 추론되는지 판정 (0/1) ③ 1의 개수 ÷ 주장 수 |
+| 프롬프트 | ragas `ClaimDecompositionPrompt`, `NLIStatementPrompt` (`ragas.metrics.collections.factual_correctness.util`) 그대로. 새 프롬프트 작성 없음 |
+| 분해 옵션 | `atomicity="low"`, `coverage="low"` (`FactualCorrectness` 기본값과 동일, 기존 지표와 비교 가능) |
+| 호출 | 샘플당 채점 LLM 2회 (`factual_correctness`는 4회) |
+| 구현 | `scorer.py`에 프롬프트 클래스를 직접 호출하는 지표 클래스 추가. `FactualCorrectness`의 `_decompose_claims`·`_verify_claims`(내부 함수) 호출은 ragas 버전 변경에 깨질 수 있어 쓰지 않음 |
+| 실패 | 주장 0개, 판정 수 불일치, 예외 → NULL + `metadata.errors` (0점 아님) |
+| 모드 | `rag`, `baseline`, `offline` 모두 (검색 결과 불필요). `offline` 기대값 1 근접 |
+| 짝 지표 | `reference_faithfulness`. 커버리지는 지어낸 덧붙임을 못 잡으므로 둘을 함께 해석 |
+
+| 커버리지 | `reference_faithfulness` | 해석 |
+| --- | --- | --- |
+| 높음 | 높음 | 정답을 다 말했고 덧붙인 내용도 원문상 사실 |
+| 높음 | 낮음 | 정답은 말했지만 지어낸 내용을 덧붙임 |
+| 낮음 | 높음 | 사실만 말했지만 정답 내용을 빠뜨림 |
+| 낮음 | 낮음 | 정답을 빠뜨리고 지어냄 |
+
+| DB 변경 (예정) | 타입 | 제약 |
+| --- | --- | --- |
+| `ragas_evaluation_samples.answer_coverage` | NUMERIC(4,3) NULL | CHECK 0 ~ 1 |
+| `ragas_evaluation_run.avg_answer_coverage` | NUMERIC(4,3) NULL | |
+
+- 추가 방식: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (재실행 안전). 기존 행은 NULL
+- 같은 커밋에서 `db/ragas_schema.sql`, `docs/Schema.md`, 이 PRD의 "DB 추가 테이블" 표 갱신
+
+| 영향 범위 | 변경 |
+| --- | --- |
+| `scorer` | `METRIC_NAMES`, `METRICS_BY_MODE`, `ScoreResult` 지표 7개, `build_metrics`, `score_sample` 입력 |
+| `repository` | 샘플 점수 UPDATE, run 집계 `avg_answer_coverage` |
+| `runner` | 재개 시 "지표 전부 NULL" 판정에 포함 |
+| `report` | 지표 평균 7개, 모드별 비교, `rag - baseline` 차이 |
+| `tests` | 채점 LLM mock으로 "덧붙여도 1.0", "절반 누락 0.5", "주장 0개 → NULL", 모드별 적용 확인 |
+
+| 비교·재개 규칙 | 값 |
+| --- | --- |
+| 채점 버전 | `run.metadata.scoring_prompt`를 `answer_relevancy-ko-v1+answer_coverage-v1`로 올림 |
+| 재개 | 추가 전 run은 버전이 달라 재개 불가 (일부 샘플만 커버리지가 채워지는 것 방지) |
+| 보고서 | 추가 전 run과 따로 집계. golden_v1 기존 run(`67905db0…`, `282df708…`)은 커버리지 NULL |
+| 이전 run | 수정하지 않음. 커버리지가 필요하면 새 run으로 실행 |
+
+| 결정 필요 | 선택지 |
+| --- | --- |
+| golden_v1 커버리지 측정 | ① 새 `rag`·`baseline` run 실행 (답변 LLM + 채점 비용) ② 저장된 답변으로 새 run을 만들어 채점만 하는 명령 추가 (답변 비용 없음, 기능 추가 필요) |
+| 분해 옵션 | `atomicity="high"`로 정답 주장을 더 잘게 쪼개면 일부 누락 시 덩어리 전체가 X 되는 문제 완화. 기존 지표와 조건이 달라지므로 실험 후 결정 |
+
 ## 평가 실행 순서
 
 | 순서 | 테이블 | 작업 | 컬럼 |
@@ -366,6 +427,12 @@
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
+- [ ] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
+- [ ] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL)
+- [ ] 6-3. `repository`·`runner` 저장·집계·재개 반영 + 테스트
+- [ ] 6-4. `report` 지표 7개 + 테스트
+- [ ] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
+- [ ] 6-6. `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
 
 ## 운영 체크리스트
 
