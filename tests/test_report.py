@@ -38,6 +38,7 @@ def run_row(**overrides):
         "avg_answer_relevancy": Decimal("0.812"),
         "avg_factual_correctness": Decimal("0.400"),
         "avg_reference_faithfulness": Decimal("0.550"),
+        "avg_answer_coverage": None,
         "started_at": datetime(2026, 10, 3, 10, 0, tzinfo=KST),
         "finished_at": datetime(2026, 10, 3, 10, 5, tzinfo=KST),
         "metadata": {"prompt_version": "baseline-v0", "scoring_prompt": "answer_relevancy-ko-v1"},

@@ -1,4 +1,4 @@
-# ScoreResult 타입 검증과 모드별 지표 6개 채점 테스트 (지표는 AsyncMock, 실제 LLM 호출 없음)
+# ScoreResult 타입 검증과 모드별 지표 7개 채점 테스트 (지표는 AsyncMock, 실제 LLM 호출 없음)
 import asyncio
 import logging
 from types import SimpleNamespace
@@ -7,6 +7,11 @@ from unittest.mock import AsyncMock
 import pytest
 from openai import AsyncOpenAI
 from pydantic import ValidationError
+from ragas.metrics.collections.factual_correctness.util import (
+    ClaimDecompositionOutput,
+    NLIStatementOutput,
+    StatementFaithfulnessAnswer,
+)
 
 from ragas_eval.scorer import scorer
 from ragas_eval.scorer.scorer import METRIC_NAMES, MODES, ScoreResult, build_metrics, score_sample
@@ -19,7 +24,7 @@ REFERENCE_CONTEXTS = ["정책 원문 1"]
 RETRIEVAL_METRICS = ("context_precision", "context_recall", "faithfulness")
 
 
-def test_score_result_keeps_six_metrics():
+def test_score_result_keeps_seven_metrics():
     result = ScoreResult(
         context_precision=0.9,
         context_recall=1.0,
@@ -27,6 +32,7 @@ def test_score_result_keeps_six_metrics():
         answer_relevancy=0.75,
         factual_correctness=0.6,
         reference_faithfulness=0.4,
+        answer_coverage=0.8,
     )
 
     assert result.model_dump(exclude={"errors"}) == {
@@ -36,6 +42,7 @@ def test_score_result_keeps_six_metrics():
         "answer_relevancy": 0.75,
         "factual_correctness": 0.6,
         "reference_faithfulness": 0.4,
+        "answer_coverage": 0.8,
     }
 
 
@@ -108,6 +115,7 @@ def test_each_metric_receives_its_inputs():
     metrics["reference_faithfulness"].ascore.assert_awaited_once_with(
         user_input=QUESTION, response=ANSWER, retrieved_contexts=REFERENCE_CONTEXTS
     )
+    metrics["answer_coverage"].ascore.assert_awaited_once_with(response=ANSWER, reference=REFERENCE)
 
 
 def test_metric_values_map_to_score_result():
@@ -118,6 +126,7 @@ def test_metric_values_map_to_score_result():
         answer_relevancy=0.75,
         factual_correctness=0.6,
         reference_faithfulness=0.4,
+        answer_coverage=0.8,
     )
 
     result = score(metrics)
@@ -129,6 +138,7 @@ def test_metric_values_map_to_score_result():
         answer_relevancy=0.75,
         factual_correctness=0.6,
         reference_faithfulness=0.4,
+        answer_coverage=0.8,
     )
 
 
@@ -140,7 +150,12 @@ def test_baseline_skips_retrieval_metrics_without_errors():
     for name in RETRIEVAL_METRICS:
         metrics[name].ascore.assert_not_awaited()
         assert getattr(result, name) is None
-    assert (result.answer_relevancy, result.factual_correctness, result.reference_faithfulness) == (0.5, 0.5, 0.5)
+    assert (
+        result.answer_relevancy,
+        result.factual_correctness,
+        result.reference_faithfulness,
+        result.answer_coverage,
+    ) == (0.5, 0.5, 0.5, 0.5)
     assert result.errors == {}
 
 
@@ -149,11 +164,16 @@ def test_baseline_does_not_need_retrieval_metric_objects():
 
     result = score(metrics, mode="baseline", retrieved_contexts=[])
 
-    assert (result.answer_relevancy, result.factual_correctness, result.reference_faithfulness) == (0.5, 0.5, 0.5)
+    assert (
+        result.answer_relevancy,
+        result.factual_correctness,
+        result.reference_faithfulness,
+        result.answer_coverage,
+    ) == (0.5, 0.5, 0.5, 0.5)
     assert result.errors == {}
 
 
-def test_offline_scores_all_six_metrics():
+def test_offline_scores_all_seven_metrics():
     metrics = fake_metrics()
 
     result = score(metrics, mode="offline")
@@ -249,7 +269,7 @@ def test_cancellation_is_not_swallowed():
         score(metrics)
 
 
-def test_build_metrics_creates_six_metrics_without_network(monkeypatch):
+def test_build_metrics_creates_seven_metrics_without_network(monkeypatch):
     # ragas의 track은 @silent로 예외를 삼키므로 raise 대신 호출 기록으로 확인한다
     posts = []
     monkeypatch.setattr("ragas._analytics.requests.post", lambda *args, **kwargs: posts.append(args))
@@ -267,6 +287,7 @@ def test_build_metrics_creates_six_metrics_without_network(monkeypatch):
         "AnswerRelevancy",
         "FactualCorrectness",
         "Faithfulness",
+        "AnswerCoverage",
     ]
     assert metrics["reference_faithfulness"] is not metrics["faithfulness"]
     assert metrics["reference_faithfulness"].name == "reference_faithfulness"
@@ -304,3 +325,63 @@ def test_answer_relevancy_uses_fixed_korean_prompt():
     assert all("Einstein" not in str(example) for example in prompt.examples)
     assert "만 19세부터 34세까지" in text
     assert scorer.SCORING_PROMPT_VERSION == "answer_relevancy-ko-v1"
+
+
+def coverage_llm(claims, verdicts):
+    """분해 결과(정답 주장)와 판정(0/1)을 차례로 돌려주는 채점 LLM"""
+    statements = [StatementFaithfulnessAnswer(statement=f"주장 {i}", reason="근거", verdict=v) for i, v in enumerate(verdicts)]
+    return SimpleNamespace(
+        agenerate=AsyncMock(
+            side_effect=[ClaimDecompositionOutput(claims=claims), NLIStatementOutput(statements=statements)]
+        )
+    )
+
+
+def coverage(llm, answer=ANSWER, reference=REFERENCE):
+    return asyncio.run(scorer.AnswerCoverage(llm).ascore(response=answer, reference=reference)).value
+
+
+def test_answer_coverage_decomposes_only_reference_and_checks_it_against_answer():
+    llm = coverage_llm(["주장 A", "주장 B"], [1, 1])
+
+    coverage(llm, answer="정답 내용에 원문 사실을 덧붙인 답변", reference="정답 문장")
+
+    (decompose_prompt, decompose_model), (verify_prompt, verify_model) = (c.args for c in llm.agenerate.await_args_list)
+    assert (decompose_model, verify_model) == (ClaimDecompositionOutput, NLIStatementOutput)
+    assert "정답 문장" in decompose_prompt and "덧붙인 답변" not in decompose_prompt
+    assert "덧붙인 답변" in verify_prompt and "주장 A" in verify_prompt
+
+
+def test_answer_coverage_uses_high_atomicity_and_coverage_examples():
+    llm = coverage_llm(["주장 A"], [1])
+
+    coverage(llm)
+
+    decompose_prompt = llm.agenerate.await_args_list[0].args[0]
+    # ragas 예시 중 high/high에만 있는 문장
+    assert "Charles Babbage was French." in decompose_prompt
+
+
+def test_answer_coverage_is_full_when_all_reference_claims_are_in_answer():
+    assert coverage(coverage_llm(["주장 A", "주장 B", "주장 C"], [1, 1, 1])) == 1.0
+
+
+def test_answer_coverage_is_half_when_half_of_reference_is_missing():
+    assert coverage(coverage_llm(["주장 A", "주장 B", "주장 C", "주장 D"], [1, 0, 1, 0])) == 0.5
+
+
+@pytest.mark.parametrize(
+    ("claims", "verdicts", "error"),
+    [
+        pytest.param([], [], "NoClaimsError", id="no-claims"),
+        pytest.param(["주장 A", "주장 B"], [1], "VerdictCountMismatchError", id="verdict-count-mismatch"),
+    ],
+)
+def test_answer_coverage_failure_is_none_not_zero(claims, verdicts, error):
+    metrics = fake_metrics()
+    metrics["answer_coverage"] = scorer.AnswerCoverage(coverage_llm(claims, verdicts))
+
+    result = score(metrics)
+
+    assert result.answer_coverage is None
+    assert result.errors == {"answer_coverage": error}

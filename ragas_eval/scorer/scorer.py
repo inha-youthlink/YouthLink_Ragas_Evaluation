@@ -1,4 +1,4 @@
-# 모드별 RAGAS 지표 채점 (검색 지표 3개 + Answer Relevancy + 할루시네이션 비교 지표 2개)
+# 모드별 RAGAS 지표 채점 (검색 지표 3개 + Answer Relevancy + 할루시네이션 비교 지표 2개 + Answer Coverage)
 import asyncio
 import logging
 import math
@@ -24,6 +24,15 @@ from ragas.metrics.collections.answer_relevancy.util import (
     AnswerRelevanceOutput,
     AnswerRelevancePrompt,
 )
+from ragas.metrics.collections.factual_correctness.util import (
+    ClaimDecompositionInput,
+    ClaimDecompositionOutput,
+    ClaimDecompositionPrompt,
+    NLIStatementInput,
+    NLIStatementOutput,
+    NLIStatementPrompt,
+)
+from ragas.metrics.result import MetricResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +44,14 @@ METRIC_NAMES = (
     "answer_relevancy",
     "factual_correctness",
     "reference_faithfulness",
+    "answer_coverage",
 )
 # baseline은 검색을 하지 않으므로 검색 결과가 필요한 지표를 계산하지 않는다 (PRD "평가 지표" 모드별 표)
 Mode = Literal["rag", "baseline", "offline"]
 METRICS_BY_MODE = MappingProxyType(
     {
         "rag": METRIC_NAMES,
-        "baseline": ("answer_relevancy", "factual_correctness", "reference_faithfulness"),
+        "baseline": ("answer_relevancy", "factual_correctness", "reference_faithfulness", "answer_coverage"),
         "offline": METRIC_NAMES,
     }
 )
@@ -55,10 +65,14 @@ REASONING_MAX_COMPLETION_TOKENS = 4096
 SCORING_PROMPT_VERSION = "answer_relevancy-ko-v1"
 # AnswerRelevancy의 코사인 유사도 평균은 1.0000000000000002처럼 범위를 미세하게 넘을 수 있다
 SCORE_TOLERANCE = 1e-9
+# answer_coverage는 정답 정보를 버리지 않고(coverage) 사실 하나씩(atomicity) 쪼개야 누락을 잡는다.
+# factual_correctness는 기존 run과 비교하려고 ragas 기본값(low/low)을 유지한다
+COVERAGE_ATOMICITY = "high"
+COVERAGE_COVERAGE = "high"
 
 
 class ScoreResult(BaseModel):
-    """샘플 1건의 지표 6개. 실패한 지표는 None으로 두고 errors에 지표명 → 사유를 남긴다.
+    """샘플 1건의 지표 7개. 실패한 지표는 None으로 두고 errors에 지표명 → 사유를 남긴다.
     모드에서 제외된 지표도 None이지만 errors에는 남기지 않는다."""
 
     model_config = ConfigDict(frozen=True)
@@ -69,6 +83,7 @@ class ScoreResult(BaseModel):
     answer_relevancy: Score | None = None
     factual_correctness: Score | None = None
     reference_faithfulness: Score | None = None
+    answer_coverage: Score | None = None
     errors: dict[str, str] = Field(default_factory=dict)
 
 
@@ -101,6 +116,39 @@ class KoreanAnswerRelevancePrompt(AnswerRelevancePrompt):
     ]
 
 
+class NoClaimsError(ValueError):
+    """정답에서 주장이 하나도 나오지 않아 비율을 계산할 수 없음"""
+
+
+class VerdictCountMismatchError(ValueError):
+    """판정 수가 주장 수와 달라 어느 주장이 맞았는지 알 수 없음"""
+
+
+class AnswerCoverage:
+    """정답(reference)의 주장 중 답변에서 추론되는 비율. 정답 밖 덧붙임은 감점하지 않는다.
+    ragas FactualCorrectness의 프롬프트를 그대로 쓰되, 내부 함수 대신 프롬프트를 직접 호출한다 (PRD "Answer Coverage")."""
+
+    name = "answer_coverage"
+
+    def __init__(self, llm: Any) -> None:
+        self.llm = llm
+        self.prompt = ClaimDecompositionPrompt()
+        self.nli_prompt = NLIStatementPrompt()
+
+    async def ascore(self, response: str, reference: str) -> MetricResult:
+        decomposition = ClaimDecompositionInput(
+            response=reference, atomicity=COVERAGE_ATOMICITY, coverage=COVERAGE_COVERAGE
+        )
+        claims = (await self.llm.agenerate(self.prompt.to_string(decomposition), ClaimDecompositionOutput)).claims
+        if not claims:
+            raise NoClaimsError
+        verification = NLIStatementInput(context=response, statements=claims)
+        verdicts = (await self.llm.agenerate(self.nli_prompt.to_string(verification), NLIStatementOutput)).statements
+        if len(verdicts) != len(claims):
+            raise VerdictCountMismatchError
+        return MetricResult(value=sum(v.verdict == 1 for v in verdicts) / len(claims))
+
+
 def make_llm(model: str, client: AsyncOpenAI) -> Any:
     """ragas 구조화 출력 LLM. GPT-5 이상은 max_completion_tokens·temperature 1.0으로 보낸다."""
     llm = llm_factory(model, client=client)
@@ -123,6 +171,7 @@ def build_metrics(client: AsyncOpenAI, judge_model: str, embedding_model: str) -
         "answer_relevancy": _korean_answer_relevancy(llm, embeddings),
         "factual_correctness": FactualCorrectness(llm=llm),
         "reference_faithfulness": Faithfulness(llm=llm, name="reference_faithfulness"),
+        "answer_coverage": AnswerCoverage(llm),
     }
 
 
@@ -160,6 +209,7 @@ async def score_sample(
             "response": answer,
             "retrieved_contexts": reference_contexts,
         },
+        "answer_coverage": {"response": answer, "reference": reference},
     }
     outcomes = await asyncio.gather(*(metrics[name].ascore(**inputs[name]) for name in names), return_exceptions=True)
 
