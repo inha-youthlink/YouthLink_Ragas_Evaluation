@@ -104,7 +104,7 @@ class KoreanAnswerRelevancePrompt(AnswerRelevancePrompt):
 def make_llm(model: str, client: AsyncOpenAI) -> Any:
     """ragas 구조화 출력 LLM. GPT-5 이상은 max_completion_tokens·temperature 1.0으로 보낸다."""
     llm = llm_factory(model, client=client)
-    matched = GPT_VERSION.match(model.lower())
+    matched = GPT_VERSION.search(model.lower())
     if matched and int(matched.group(1)) >= 5:
         # model_args는 호출마다 복사돼 요청 인자가 되므로 생성 직후 한 번 바꾼다
         llm.model_args.pop("max_tokens", None)
