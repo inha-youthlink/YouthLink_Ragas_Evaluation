@@ -7,9 +7,9 @@
 
 | 항목 | 검색 적중률 평가 | 라우팅 평가 |
 | --- | --- | --- |
-| 묻는 것 | 정답 정책을 찾아서 사용자에게 보여 줬나 | 질문을 맞게 이해했나 |
-| 데이터셋 | `golden_vN` (답변 품질과 같은 데이터셋, 같은 run) | `routing_vN` (따로 만듦) |
-| 정답 | 질문마다 이미 있는 정답 정책 번호(`policy_no`) | 질문마다 적어 둔 기대 유형·지목 정책 |
+| 묻는 것 | 정답 정책을 찾아서 사용자에게 보여 줬나 | 질문 유형을 맞게 분류해 맞는 핸들러로 보냈나 |
+| 데이터셋 | `golden_vN` (답변 품질과 같은 데이터셋, 같은 run) | `routing_vN` (따로 만듦, 대화 없는 단일 질문) |
+| 정답 | 질문마다 이미 있는 정답 정책 번호(`policy_no`) | 질문마다 적어 둔 기대 유형·핸들러 |
 | 실행 | 기존 `run`에서 함께 계산 | 새 명령 `route` |
 | 비용 | 추가 없음 (RAG 호출은 답변 품질과 공유) | RAG 호출만 |
 
@@ -19,7 +19,7 @@
 
 | 단계 | 하는 일 | 지표 | 응답 값 | 평가 |
 | --- | --- | --- | --- | --- |
-| 1. 질문 분석 | 질문 유형 분류, 지목 정책 찾기, 검색어·조건 추출 | `intent_correct`, `target_correct`, `context_kept`, 분석 실패율 | `trace.analysis.sub_queries[]`, 응답 `current_policies`, `fallback_reason` | 라우팅 (`routing_vN`) |
+| 1. 질문 분석 | 질문 유형 분류, 검색어·조건 추출 | `intent_correct`, 분석 실패율 | `trace.analysis.sub_queries[].intent`, `fallback_reason` | 라우팅 (`routing_vN`) |
 | 2. 핸들러 선택 | 질문을 맞는 핸들러로 보냄 | `handler_correct` (라우터 구현 후) | `trace.handler` | 라우팅 (`routing_vN`) |
 | 3. 1차 필터 | 조건으로 정책 거르기 | `filter_hit` | `trace.filtered_policy_nos` (요청 중) | 검색 적중률 (`golden_vN`) |
 | 4. 검색 | 청크 검색, 정책 순위 | `retrieval_hit`, `hit_at_k` (k = 1, 3, 5, 10), MRR | `trace.retrieved_chunks` | 검색 적중률 (`golden_vN`) |
@@ -70,20 +70,21 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 
 ## 라우팅 평가
 
+질문 하나를 대화 없이 보내고, 질문 유형과 선택된 핸들러가 기대값과 같은지 본다. 앞 턴(`history`)은 보내지 않는다.
+
 ### 지표
 
 | 지표 | 묻는 것 | 계산 | 응답 값 |
 | --- | --- | --- | --- |
 | `intent_correct` | 질문 유형을 맞게 분류했나 | 하위 질문 유형 묶음 = `expected_intent` 묶음이면 1 (순서 무관, 개수 포함) | `trace.analysis.sub_queries[].intent` |
-| `target_correct` | "두 번째 정책"처럼 지목한 정책을 맞게 찾았나 | 하위 질문 지목 정책 합집합 = `expected_target_policy_nos` 집합이면 1 | `trace.analysis.sub_queries[].target_policy_nos` |
-| `context_kept` | 이어지는 질문에서 현재 정책을 맞게 유지·교체·초기화했나 | 응답 현재 정책 집합 = `expected_current_policy_nos` 집합이면 1 | 응답 `current_policies` |
+| `handler_correct` | 맞는 핸들러로 보냈나 | 핸들러 = `expected_handler`면 1 | `trace.handler` (라우터 구현 후) |
 | 분석 실패율 | 분석이 실패한 비율 (실패해도 답변은 나옴) | `fallback_reason`이 있는 비율 | `trace.analysis.fallback_reason` |
-| `handler_correct` | 맞는 핸들러로 보냈나 | 핸들러 = 기대 핸들러면 1 | `trace.handler` (라우터 구현 후) |
 
 - 유형 7종: `policy_list`, `policy_detail`, `eligibility`, `comparison`, `chitchat`, `out_of_scope`, `unclear`
 - run 집계: 정확도, 유형별 정확도, 혼동 행렬(무엇을 무엇으로 착각했나)
 - 유형별 정확도·혼동 행렬은 하위 질문이 1개인 샘플(기대·응답 모두)로만 집계한다. 여러 개인 샘플은 `intent_correct`에만 반영
-- 현재 정책 갱신 규칙 (RAG `current_policy.py`): 지목 정책이 있으면 교체, 없고 화제 전환이면 비움, 아니면 유지. 분석 실패 시 입력 그대로
+- 라우터 구현 전에는 핸들러가 `default_rag` 하나라 `handler_correct`를 계산하지 않고 `intent_correct`만 본다
+- 이어지는 질문("두 번째 거 알려줘")의 지목·맥락 유지는 평가하지 않는다. 필요해지면 따로 추가
 
 ### 데이터셋 (`datasets/routing_vN.jsonl`)
 
@@ -91,24 +92,17 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | --- | --- |
 | `sample_id` | `route-000001` |
 | `question` | 사용자 질문 |
-| `history` | 앞 턴의 질문·답변·카드 목록 (이어지는 질문만, 없으면 `[]`) |
-| `current_policies` | 현재 대화 중인 정책 (이어지는 질문만) |
 | `expected_intent` | 기대 유형 목록 (list[str], 하위 질문마다 1개. 대부분 1개) |
-| `expected_target_policy_nos` | 지목 질문의 기대 정책 (지목 없으면 `[]`) |
-| `expected_current_policy_nos` | 턴이 끝난 뒤 기대 현재 정책 (위 갱신 규칙 기준) |
-| `expected_handler` | 라우터 구현 후 채움 |
+| `expected_handler` | 기대 핸들러 (라우터 구현 후 채움, 그 전에는 null) |
 | `reviewed` | 검수 여부 |
 
 | 구성 | 건수 |
 | --- | --- |
 | 유형 7종 | 각 10~15건 |
-| 지목·이어지는 질문 | 10~20건 |
 | 하위 질문이 여러 개인 질문 | 5~10건 |
 
 - 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수
-- 앞 턴 정책: `datasets/routing_policies.jsonl` (golden_v1 정책 25건, `policy_no`·`policy_name`·`field`·`similar_group`). 이름이 비슷한 묶음(`similar_group`)은 `unclear` 판정용
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
-- 이어지는 질문은 앞 턴을 고정값으로 넣고 한 번만 호출한다
 
 ## 결과 저장
 
@@ -120,8 +114,8 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | 확인 | 이유 |
 | --- | --- |
 | 평가 대상 서버와 DB | 로컬 DB는 정책당 청크 1개 임시본이라 실제와 다름 |
-| 라우터·핸들러 구현 일정, `trace.handler` 값 | `handler_correct` 준비 |
-| 앞 턴을 고정값으로 넣어도 실제 대화와 같은 분석 결과가 나오는지, 카드 번호 규칙 | 라우팅 데이터셋 작성 |
+| 라우터·핸들러 구현 일정, `trace.handler` 값 목록 | `handler_correct` 준비 |
+| 질문 유형(`intent`) → 핸들러 대응표 | `expected_handler` 작성 |
 | 실제 후보 수 (문서 5, 코드 기본값 6) | 후보 단계 해석 |
 | debug 응답 trace 최상위에 `filtered_policy_nos` 추가 (필터 없음 null, 통과 없음 `[]`). 요청 문구는 루트 `요청사항.md` | `filter_hit` 계산 |
 
@@ -132,7 +126,6 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 - [ ] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `filter_hit`, `hit_at_k`, MRR) + 테스트
 - [ ] R-3. `run`에서 R-2를 계산해 `metadata`에 저장 + 테스트
 - [ ] R-4. 보고서에 검색 적중률 표 + 테스트
-- [ ] R-5. `rag_client`가 `history`, `current_policies`를 보내고 응답 `current_policies`를 저장 + 테스트
 - [ ] R-6. `routing_vN` 데이터셋 로드·검사 + 테스트
 - [ ] R-7. `route` 명령 (호출 → 라우팅 지표 채점 → 저장) + 테스트
 - [ ] R-8. 보고서에 라우팅 표 (정확도, 혼동 행렬) + 테스트

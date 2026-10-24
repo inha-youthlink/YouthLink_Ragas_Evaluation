@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | 답변 품질 평가 | 최종 답변이 정확한가, 빠뜨리거나 지어내지 않았나 | `golden_vN` | RAGAS (LLM) | `docs/RAGAS_PRD.md` |
 | 검색 적중률 평가 | 정답 정책을 찾아서 보여 줬나 | `golden_vN` (답변 품질과 같은 run) | 코드 | `docs/RETRIEVE_PRD.md` |
-| 라우팅 평가 | 질문 종류를 맞게 이해했나 (유형, 카드 지목, 맥락 유지) | `routing_vN` | 코드 | `docs/RETRIEVE_PRD.md` |
+| 라우팅 평가 | 질문 유형을 맞게 분류해 맞는 핸들러로 보냈나 | `routing_vN` | 코드 | `docs/RETRIEVE_PRD.md` |
 
 - 1차 필터는 따로 평가하지 않고, 답변 품질·검색 적중률 결과를 질문에 조건이 있는지로 나눠 본다
 
