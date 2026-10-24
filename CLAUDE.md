@@ -68,7 +68,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 | --- | --- |
 | `docs/PRD.md` | 공통: 역할 분담, 전체 흐름, 의존 관계, 현재 상태, RAG 연동 계약, 코드 구조, 명령어, 실행 환경, 선행 작업, 공통 구현 체크리스트 |
 | `docs/RAGAS_PRD.md` | RAGAS 답변 품질 채점: 실행 모드(`rag`·`baseline`·`offline`), 데이터셋 생성, 지표 7개(`answer_coverage` 포함), 평가 실행 순서, 보고서, 평가 테이블 DDL |
-| `docs/RETRIEVE_PRD.md` | 코드 기반 검색·라우팅 평가: 정책·청크 단위 top-k 지표(Hit@k, MRR), 청킹 방식 비교, intent·핸들러 라우팅 지표, `routing_v1` 데이터셋 |
+| `docs/RETRIEVE_PRD.md` | 코드 기반 검색·라우팅 평가: 단계별 적중(검색 → 후보 → 카드), 보조 순위 지표(Hit@k, MRR), 청킹 방식 비교, intent·핸들러 라우팅 지표, `routing_v1` 데이터셋 |
 
 코드 주석의 `PRD "섹션명"`은 위 세 문서 중 그 섹션이 있는 문서를 가리킨다.
 
