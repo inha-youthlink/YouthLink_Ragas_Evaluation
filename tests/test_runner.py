@@ -289,7 +289,7 @@ def test_start_run_records_baseline_conditions(conn, golden_record):
     run = run_row(conn, run_id)
     assert (run["status"], run["mode"], run["repeat_no"]) == ("RUNNING", "baseline", 2)
     assert (run["rag_chat_model"], run["rag_retriever"], run["rag_top_k"]) == ("test-baseline", "none", None)
-    assert run["metadata"] == {"prompt_version": "baseline-v0", "scoring_prompt": "answer_relevancy-ko-v1"}
+    assert run["metadata"] == {"prompt_version": "baseline-v0", "scoring_prompt": "answer_relevancy-ko-v1+answer_coverage-v1"}
     assert (run["judge_model"], run["embedding_model"]) == ("test-judge", "test-emb")
     count = fetch(conn, "SELECT COUNT(*) AS n FROM ragas_evaluation_samples WHERE run_id = %s", [run_id])[0]["n"]
     assert count == 2
@@ -518,12 +518,25 @@ def test_start_run_records_scoring_prompt_in_every_mode(conn, golden_record):
         settings=fake_settings(),
     )
 
-    assert run_row(conn, run_id)["metadata"] == {"scoring_prompt": "answer_relevancy-ko-v1"}
+    assert run_row(conn, run_id)["metadata"] == {"scoring_prompt": "answer_relevancy-ko-v1+answer_coverage-v1"}
 
 
 @pytest.mark.db
 def test_check_resumable_rejects_run_scored_with_other_prompt(conn, golden_record):
     run_id = new_run(conn, make_samples(golden_record, 1), mode="rag")
+
+    with pytest.raises(ValueError, match="scoring_prompt"):
+        check_resumable(conn, run_id, mode="rag", dataset_version="golden_v1", settings=fake_settings())
+
+
+@pytest.mark.db
+def test_check_resumable_rejects_run_started_before_answer_coverage(conn, golden_record):
+    # 커버리지 추가 전 run을 재개하면 남은 샘플에만 커버리지가 채워진다
+    run_id = insert_run(
+        conn, dataset_version="golden_v1", repeat_no=1, mode="rag", judge_model="test-judge",
+        embedding_model="test-emb", metadata={"scoring_prompt": "answer_relevancy-ko-v1"},
+    )
+    conn.commit()
 
     with pytest.raises(ValueError, match="scoring_prompt"):
         check_resumable(conn, run_id, mode="rag", dataset_version="golden_v1", settings=fake_settings())

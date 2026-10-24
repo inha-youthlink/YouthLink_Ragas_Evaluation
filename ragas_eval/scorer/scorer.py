@@ -62,7 +62,7 @@ GPT_VERSION = re.compile(r"gpt-(\d+)(?:\.\d+)?(?:-|$)")
 # ragas 문서 권장: GPT-5 계열은 추론 토큰 때문에 구조화 출력에 4096 이상 필요
 REASONING_MAX_COMPLETION_TOKENS = 4096
 # 채점 프롬프트 버전. 바꾸면 run.metadata.scoring_prompt로 구분하고 다른 버전 run과 섞어 비교하지 않는다
-SCORING_PROMPT_VERSION = "answer_relevancy-ko-v1"
+SCORING_PROMPT_VERSION = "answer_relevancy-ko-v1+answer_coverage-v1"
 # AnswerRelevancy의 코사인 유사도 평균은 1.0000000000000002처럼 범위를 미세하게 넘을 수 있다
 SCORE_TOLERANCE = 1e-9
 # answer_coverage는 정답 정보를 버리지 않고(coverage) 사실 하나씩(atomicity) 쪼개야 누락을 잡는다.

@@ -324,7 +324,7 @@ def test_answer_relevancy_uses_fixed_korean_prompt():
     assert "한국어" in prompt.instruction and "noncommittal" in prompt.instruction
     assert all("Einstein" not in str(example) for example in prompt.examples)
     assert "만 19세부터 34세까지" in text
-    assert scorer.SCORING_PROMPT_VERSION == "answer_relevancy-ko-v1"
+    assert scorer.SCORING_PROMPT_VERSION == "answer_relevancy-ko-v1+answer_coverage-v1"
 
 
 def coverage_llm(claims, verdicts):
