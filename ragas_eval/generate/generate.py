@@ -232,9 +232,9 @@ def build_knowledge_graph(
 
 def _run_generator(documents: Sequence[Document], testset_size: int, settings: Settings) -> list[dict]:
     api_key = settings.openai_api_key.get_secret_value()
-    synthesizer = asyncio.run(_korean_synthesizer(api_key, settings.gen_model))
+    synthesizer = asyncio.run(_korean_synthesizer(api_key, settings.gen_model, settings.openai_base_url))
 
-    client = _generation_client(api_key)
+    client = _generation_client(api_key, settings.openai_base_url)
     llm = make_llm(settings.gen_model, client)
     embeddings = OpenAIEmbeddings(client=client, model=settings.embedding_model)
     synthesizer.llm = llm
@@ -251,12 +251,12 @@ def _run_generator(documents: Sequence[Document], testset_size: int, settings: S
     return testset.to_list()
 
 
-def _generation_client(api_key: str) -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=api_key, http_client=DefaultAsyncHttpxClient(limits=NO_KEEPALIVE_LIMITS))
+def _generation_client(api_key: str, base_url: str | None = None) -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=api_key, base_url=base_url, http_client=DefaultAsyncHttpxClient(limits=NO_KEEPALIVE_LIMITS))
 
 
-async def _korean_synthesizer(api_key: str, model: str) -> TolerantSingleHopSynthesizer:
-    async with AsyncOpenAI(api_key=api_key) as client:
+async def _korean_synthesizer(api_key: str, model: str, base_url: str | None = None) -> TolerantSingleHopSynthesizer:
+    async with AsyncOpenAI(api_key=api_key, base_url=base_url) as client:
         llm = make_llm(model, client)
         synthesizer = TolerantSingleHopSynthesizer(llm=llm)
         prompts = await synthesizer.adapt_prompts(LANGUAGE, llm=llm)

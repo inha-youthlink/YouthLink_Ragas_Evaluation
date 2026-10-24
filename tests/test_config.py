@@ -16,7 +16,7 @@ REQUIRED_ENV = {
 def required_env(monkeypatch):
     for key, value in REQUIRED_ENV.items():
         monkeypatch.setenv(key, value)
-    for key in ("BASELINE_MODEL", "OPENAI_TIMEOUT", "OPENAI_MAX_RETRIES", "EMBEDDING_MODEL"):
+    for key in ("BASELINE_MODEL", "OPENAI_TIMEOUT", "OPENAI_MAX_RETRIES", "EMBEDDING_MODEL", "OPENAI_BASE_URL"):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -71,3 +71,17 @@ def test_invalid_openai_call_settings_fail(required_env, monkeypatch, key, value
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_openai_base_url_defaults_to_none(required_env):
+    settings = Settings(_env_file=None)
+
+    assert settings.openai_base_url is None
+
+
+def test_openai_base_url_is_read_from_env(required_env, monkeypatch):
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://proxy.example/v1")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.openai_base_url == "https://proxy.example/v1"

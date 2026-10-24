@@ -204,7 +204,7 @@ def test_run_generator_uses_youth_personas(monkeypatch):
             captured["generate"] = kwargs
             return SimpleNamespace(to_list=lambda: [])
 
-    async def fake_synthesizer(api_key, model):
+    async def fake_synthesizer(api_key, model, base_url=None):
         return SimpleNamespace(llm=None)
 
     monkeypatch.setattr(generate, "TestsetGenerator", FakeGenerator)
@@ -212,7 +212,9 @@ def test_run_generator_uses_youth_personas(monkeypatch):
     monkeypatch.setattr(generate, "build_knowledge_graph", lambda documents, **kwargs: "kg")
     monkeypatch.setattr(generate, "make_llm", lambda model, client: "llm")
     monkeypatch.setattr(generate, "OpenAIEmbeddings", lambda **kwargs: "emb")
-    settings = SimpleNamespace(openai_api_key=SecretStr("test-key"), gen_model="m", embedding_model="e")
+    settings = SimpleNamespace(
+        openai_api_key=SecretStr("test-key"), openai_base_url=None, gen_model="m", embedding_model="e"
+    )
 
     generate._run_generator(DOCS, 3, settings)
 
@@ -429,3 +431,9 @@ def test_build_knowledge_graph_analyzes_once_then_loads_cache(tmp_path, monkeypa
     assert cache.exists()
     assert second.nodes[0].properties["summary"] == "분석 결과"
     assert second.nodes[0].properties["document_metadata"]["policy_no"] == first.nodes[0].properties["document_metadata"]["policy_no"]
+
+
+def test_generation_client_uses_configured_base_url():
+    client = generate._generation_client("sk-test", "https://proxy.example/v1")
+
+    assert str(client.base_url) == "https://proxy.example/v1/"

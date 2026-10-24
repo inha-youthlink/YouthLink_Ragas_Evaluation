@@ -295,6 +295,7 @@ async def _workers(settings: Settings, mode: Mode) -> AsyncIterator[Workers]:
     """모드별 응답 함수와 채점 함수를 만들고, 쓰는 동안 HTTP·OpenAI 클라이언트를 열어 둔다."""
     async with AsyncOpenAI(
         api_key=settings.openai_api_key.get_secret_value(),
+        base_url=settings.openai_base_url,
         timeout=settings.openai_timeout,
         max_retries=settings.openai_max_retries,
     ) as openai_client:
