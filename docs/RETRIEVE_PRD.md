@@ -102,6 +102,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 
 - 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수. 초안 `datasets/routing_candidates.jsonl` → 검수 → `datasets/routing_v1.jsonl`
 - 유형 판정은 RAG 분석 프롬프트(`analyze_v3.md`)의 유형 정의·"헷갈리는 경우"를 따른다. 대화 없이 보내므로 `policy_detail`·`eligibility`·`comparison` 질문에는 정책 이름을 넣고, 지시어만 있는 질문은 `unclear`
+- 경계 사례는 프롬프트 규칙으로 정답이 분명한 것만 넣는다 (기준 vs 해당 여부, 인사 + 질문, 지시어만 있는 질문). 규칙끼리 충돌하거나 해석이 갈리는 질문은 기대값이 틀릴 수 있어 넣지 않는다
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
 
 ## 결과 저장

@@ -9,7 +9,7 @@
 {"sample_id": "route-000009", "question": "대학생 아침밥이나 식비 지원 같은 거 있어요?", "expected_intent": ["policy_list"], "reviewed": false}
 {"sample_id": "route-000010", "question": "AI나 반도체 같은 신산업 분야 교육 지원 프로그램 뭐 있어?", "expected_intent": ["policy_list"], "reviewed": false}
 {"sample_id": "route-000011", "question": "지금 접수 중인 청년 일자리 사업만 모아서 보여줘", "expected_intent": ["policy_list"], "reviewed": false, "note": "status_filter open_only가 붙지만 유형은 list"}
-{"sample_id": "route-000012", "question": "국민내일배움카드 말고 비슷한 직업훈련 지원 또 있어요?", "expected_intent": ["policy_list"], "reviewed": false, "note": "정책 이름이 나오지만 비슷한 다른 정책을 찾음"}
+{"sample_id": "route-000012", "question": "중소기업에 취업한 청년한테 주는 지원 뭐 있어?", "expected_intent": ["policy_list"], "reviewed": false}
 {"sample_id": "route-000013", "question": "청년내일저축계좌 신청 방법 알려주세요", "expected_intent": ["policy_detail"], "reviewed": false}
 {"sample_id": "route-000014", "question": "국민내일배움카드로 지원받을 수 있는 금액이 얼마예요?", "expected_intent": ["policy_detail"], "reviewed": false}
 {"sample_id": "route-000015", "question": "청년문화예술패스 신청 기간이 언제까지예요?", "expected_intent": ["policy_detail"], "reviewed": false}
@@ -43,7 +43,7 @@
 {"sample_id": "route-000043", "question": "청년문화예술패스하고 청년 독서만리 사업 차이점 알려주세요", "expected_intent": ["comparison"], "reviewed": false}
 {"sample_id": "route-000044", "question": "청년창업 챌린지 지원사업, 청년기업 창업두드림 보증료 제로사업, TIPS 프로그램 세 개 중에 초기 창업자한테 뭐가 좋아요?", "expected_intent": ["comparison"], "reviewed": false, "note": "셋 비교도 comparison 하나"}
 {"sample_id": "route-000045", "question": "대학일자리플러스센터랑 일자리종합센터 취업지원 프로그램은 뭐가 달라요?", "expected_intent": ["comparison"], "reviewed": false}
-{"sample_id": "route-000046", "question": "청년미래적금이 청년내일저축계좌보다 이자가 더 높아요?", "expected_intent": ["comparison"], "reviewed": false}
+{"sample_id": "route-000046", "question": "경기도 청년 면접수당이랑 대학생 아르바이트 채용사업 중에 어느 쪽이 더 도움 돼요?", "expected_intent": ["comparison"], "reviewed": false}
 {"sample_id": "route-000047", "question": "안녕하세요", "expected_intent": ["chitchat"], "reviewed": false}
 {"sample_id": "route-000048", "question": "반가워요! 처음 써 봐요", "expected_intent": ["chitchat"], "reviewed": false}
 {"sample_id": "route-000049", "question": "감사합니다 많은 도움 됐어요", "expected_intent": ["chitchat"], "reviewed": false}
@@ -52,8 +52,8 @@
 {"sample_id": "route-000052", "question": "수고 많으셨어요 다음에 또 올게요", "expected_intent": ["chitchat"], "reviewed": false}
 {"sample_id": "route-000053", "question": "ㅎㅇ", "expected_intent": ["chitchat"], "reviewed": false}
 {"sample_id": "route-000054", "question": "고마워 진짜 친절하다", "expected_intent": ["chitchat"], "reviewed": false}
-{"sample_id": "route-000055", "question": "내 프로필 정보는 어디서 바꿔?", "expected_intent": ["chitchat"], "reviewed": false, "note": "챗봇 사용법. out_of_scope와 경계"}
-{"sample_id": "route-000056", "question": "오늘 하루 좀 지치네요", "expected_intent": ["chitchat"], "reviewed": false, "note": "감정 표현 잡담. out_of_scope와 경계"}
+{"sample_id": "route-000055", "question": "좋은 하루 보내세요!", "expected_intent": ["chitchat"], "reviewed": false}
+{"sample_id": "route-000056", "question": "잘 부탁드려요", "expected_intent": ["chitchat"], "reviewed": false}
 {"sample_id": "route-000057", "question": "안녕하세요! 국민내일배움카드 발급 조건이 뭐예요?", "expected_intent": ["policy_detail"], "reviewed": false, "note": "인사 뒤 질문 → 인사는 무시하고 질문만 분류"}
 {"sample_id": "route-000058", "question": "감사해요~ 그럼 청년문화예술패스는 어떻게 신청해요?", "expected_intent": ["policy_detail"], "reviewed": false, "note": "감사 뒤 질문 → 질문만 분류"}
 {"sample_id": "route-000059", "question": "오늘 서울 날씨 어때?", "expected_intent": ["out_of_scope"], "reviewed": false}
@@ -64,8 +64,8 @@
 {"sample_id": "route-000064", "question": "노트북 뭐 사는 게 좋아요?", "expected_intent": ["out_of_scope"], "reviewed": false}
 {"sample_id": "route-000065", "question": "다이어트 식단 짜 줘", "expected_intent": ["out_of_scope"], "reviewed": false}
 {"sample_id": "route-000066", "question": "이번 주 로또 번호 예측해 줘", "expected_intent": ["out_of_scope"], "reviewed": false}
-{"sample_id": "route-000067", "question": "노인 기초연금은 얼마 나와요?", "expected_intent": ["out_of_scope"], "reviewed": false, "note": "청년 정책이 아닌 복지 정책"}
-{"sample_id": "route-000068", "question": "아이 어린이집 입소 신청은 어떻게 해요?", "expected_intent": ["out_of_scope"], "reviewed": false, "note": "청년 정책이 아닌 보육 정책"}
+{"sample_id": "route-000067", "question": "자동차 보험 싸게 드는 법 알려줘", "expected_intent": ["out_of_scope"], "reviewed": false}
+{"sample_id": "route-000068", "question": "엑셀에서 VLOOKUP 쓰는 법 알려줘", "expected_intent": ["out_of_scope"], "reviewed": false}
 {"sample_id": "route-000069", "question": "회사 연차 계산 방법 알려줘", "expected_intent": ["out_of_scope"], "reviewed": false}
 {"sample_id": "route-000070", "question": "축구 경기 결과 알려줘", "expected_intent": ["out_of_scope"], "reviewed": false}
 {"sample_id": "route-000071", "question": "그거 신청 언제까지예요?", "expected_intent": ["unclear"], "reviewed": false, "note": "대화 없이 지시어만 있음"}
@@ -81,9 +81,9 @@
 {"sample_id": "route-000081", "question": "저번에 말한 거 있잖아요", "expected_intent": ["unclear"], "reviewed": false}
 {"sample_id": "route-000082", "question": "이거랑 그거 같이 돼요?", "expected_intent": ["unclear"], "reviewed": false}
 {"sample_id": "route-000083", "question": "청년내일저축계좌 신청 방법 알려주고, 비슷한 자산 형성 지원도 더 있으면 알려줘", "expected_intent": ["policy_detail", "policy_list"], "reviewed": false}
-{"sample_id": "route-000084", "question": "국민내일배움카드 지원 금액이 얼마예요? 그리고 프리랜서도 받을 수 있어요?", "expected_intent": ["policy_detail", "eligibility"], "reviewed": false, "note": "같은 정책이지만 의도가 달라 나뉨"}
+{"sample_id": "route-000084", "question": "국민내일배움카드 지원 금액이 얼마예요? 그리고 청년미래적금 가입 서류도 알려줘", "expected_intent": ["policy_detail", "policy_detail"], "reviewed": false, "note": "같은 유형이지만 대상 정책이 달라 나뉨"}
 {"sample_id": "route-000085", "question": "청년미래적금 서류 뭐 내야 돼요? 아 그리고 자격증 응시료 지원하는 정책도 있어요?", "expected_intent": ["policy_detail", "policy_list"], "reviewed": false}
-{"sample_id": "route-000086", "question": "TIPS 프로그램이 뭐예요? 저 대학생인데 참여할 수 있어요?", "expected_intent": ["policy_detail", "eligibility"], "reviewed": false}
+{"sample_id": "route-000086", "question": "TIPS 프로그램이 뭐예요? 그리고 창업 초기 자금 지원하는 다른 정책도 찾아줘", "expected_intent": ["policy_detail", "policy_list"], "reviewed": false}
 {"sample_id": "route-000087", "question": "청년문화예술패스 신청 기간 알려주고, 청년 독서만리 사업이랑 뭐가 다른지도 알려줘", "expected_intent": ["policy_detail", "comparison"], "reviewed": false}
 {"sample_id": "route-000088", "question": "감사해요. 가족돌봄청년 지원 신청 방법이 뭐예요? 그리고 마음 상담 지원 사업도 찾아 주세요", "expected_intent": ["policy_detail", "policy_list"], "reviewed": false, "note": "감사는 무시, 나머지 둘로 나뉨"}
 {"sample_id": "route-000089", "question": "청년 채무조정 제공 받을 수 있는지 궁금하고, 신용회복 지원사업 서류도 알려주세요", "expected_intent": ["eligibility", "policy_detail"], "reviewed": false, "note": "대상 정책이 다름"}
