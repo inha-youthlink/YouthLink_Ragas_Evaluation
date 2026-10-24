@@ -218,7 +218,7 @@
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
 | 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
-| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 |
+| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
 | 비용 | LLM 호출 없음 |
