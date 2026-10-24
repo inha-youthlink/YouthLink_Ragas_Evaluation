@@ -84,7 +84,7 @@
 | 생성기 | `TestsetGenerator(llm, embedding_model).generate_with_langchain_docs(docs, testset_size, query_distribution)` |
 | 질문 유형 | `[(SingleHopSpecificQuerySynthesizer(llm), 1.0)]` |
 | 한국어 | 생성기 프롬프트 한국어 adapt |
-| 모델 | `GEN_MODEL`, `text-embedding-3-small` |
+| 모델 | `GEN_MODEL`, `EMBEDDING_MODEL` (`bedrock-titan-embed-v2`) |
 | `policy_no` 복원 | `reference_contexts`가 포함된 `Document.page_content` 매칭 (생성기가 문서를 분할할 수 있어 일치가 아닌 포함 검사) |
 | 사전 검증 | 10건 시험 생성 (짧은 문서 누락, 한국어 품질) |
 | 검수 | `reviewed = true`만 사용 |
