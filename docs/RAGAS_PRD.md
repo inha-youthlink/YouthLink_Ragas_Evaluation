@@ -1,5 +1,7 @@
 # RAGAS 평가 PRD
 
+RAGAS 채점 기능만 둔다. 역할·흐름·RAG 연동 계약·코드 구조·실행 환경은 `docs/PRD.md`.
+
 ## 개요
 
 - 대상: `YouthLink_RAG` (`question` + `profile` → `answer` + `policies` + `trace`)
@@ -23,45 +25,7 @@
 
 - `offline`: 정답을 답변으로 넣어 채점 → 1에 근접하면 데이터셋 로드·채점·DB 저장 경로 정상, 크게 낮으면 우리 코드 오류
 - 실행 순서: `offline`으로 평가 코드 검증 → `baseline`·`rag` 점수 신뢰
-- 상세: "베이스라인 모드", "오프라인 모드", "RAG 연동 계약" 섹션
-
-## 역할 분담
-
-| 역할 | 담당 | 작업 | DB |
-| --- | --- | --- | --- |
-| ETL | 홍용준 | 온통청년 API → `policy` UPSERT | 쓰기 |
-| 데이터셋 | 박용우 | `policy` → 생성 → 검수 → `golden_vN.jsonl` | 읽기 `policy` |
-| 평가 실행 | 박용우 | Job 실행 → 결과 저장 | 쓰기 `ragas_evaluation_*` |
-| RAG | 이도경 | 개선 → 배포 → 평가 요청 | 읽기 `policy_chunk` |
-| `policy_chunk` 적재 | 홍용준 | 청킹·임베딩 → `policy_chunk` | 쓰기 |
-
-## 전체 흐름
-
-| 단계 | 주체          | 빈도 | 입력 → 출력 |
-| --- |-------------| --- | --- |
-| 1. 정책 적재 | 홍용준         | 수시 | API → `policy` |
-| 2. 데이터셋 생성 | 박용우 (로컬)    | 최초 1회, 버전업 시 | `policy` → `golden_candidates.jsonl` |
-| 3. 검수·고정 | 박용우 (로컬 검수) | 2 직후 | → `golden_vN.jsonl` (git) |
-| 4. RAG 개선·배포 | 이도경         | 개선 시마다 | → RAG 서버 (dev) |
-| 5. 평가 실행 | K8s Job     | 요청 시 | `golden_vN.jsonl` + RAG 응답 → 점수 |
-| 6. 결과 확인 | 이도경         | 5 직후 | `ragas_evaluation_run`, `ragas_evaluation_samples` |
-
-## 의존 관계
-
-| 연결 | 조건 |
-| --- | --- |
-| ETL → 데이터셋 | ETL 적재 완료 후 생성 |
-| RAG 배포 → 평가 | Job은 `RAG_BASE_URL`에 배포된 버전을 평가 |
-| ETL → 평가 | `source_updated_at` 변경 샘플 제외. 제외 증가 시 `golden_vN+1` |
-
-## 현재 상태
-
-| 구성 | 상태 |
-| --- | --- |
-| `youthlink-data-pipeline` | 수동 실행, 전체 수집, `policy`·`policy_region`·`policy_eligibility_code`만 적재, 삭제 정책 미반영 |
-| `policy_chunk` | 적재 코드 없음 |
-| `YouthLink_RAG` | `POST /internal/pipeline` 구현, `?debug=true`의 `trace.contexts`·`retrieved_chunks` 반영 완료 (PR #15). 가짜 정책으로만 확인, 실제 `policy_chunk` 적재 대기 |
-| `rag_ragas_evaluation` | `generate`, `run`(`rag`·`baseline`·`offline`, 재개), `report` 구현. `golden_v0`(시험용 10건)으로 offline·baseline 측정 완료, rag 모드는 실제 데이터 대기 |
+- 상세: "베이스라인 모드", "오프라인 모드" 섹션, `docs/PRD.md` "RAG 연동 계약"
 
 ## RAGAS 입력
 
@@ -131,7 +95,7 @@
 | 채점 프롬프트 | `answer_relevancy`는 고정 한국어 프롬프트 (영어 기본 프롬프트는 한국어 답변에서 영어 질문을 만들어 유사도가 낮아짐). LLM 번역(adapt)은 실행마다 문구가 달라져 쓰지 않음 |
 | 프롬프트 버전 | `run.metadata.scoring_prompt` (`answer_relevancy-ko-v1`). 버전이 다른 run은 재개 불가, 보고서 모드별 비교에서 따로 집계 |
 
-## Answer Coverage 추가 계획 (예정)
+## Answer Coverage
 
 `factual_correctness`는 정답 밖 내용을 사실이어도 감점한다. 정답 내용을 다 말했는지만 보는 지표를 별도 컬럼으로 추가한다. 기존 지표는 유지한다.
 
@@ -187,9 +151,10 @@
 | 보고서 | 추가 전 run과 따로 집계. golden_v1 기존 run(`67905db0…`, `282df708…`)은 커버리지 NULL |
 | 이전 run | 수정하지 않음. 커버리지가 필요하면 새 run으로 실행 |
 
-| 결정 필요 | 선택지 |
+| 측정 데이터셋 | 값 |
 | --- | --- |
-| golden_v1 커버리지 측정 | ① 새 `rag`·`baseline` run 실행 (답변 LLM + 채점 비용) ② 저장된 답변으로 새 run을 만들어 채점만 하는 명령 추가 (답변 비용 없음, 기능 추가 필요) |
+| golden_v1 | 측정하지 않음 (기존 run 재채점 명령을 만들지 않음) |
+| golden_v2 | 검수 후 새 run에서 지표 7개와 함께 측정 |
 
 ## 평가 실행 순서
 
@@ -215,18 +180,6 @@
 - RAG 설정 변경 감지: 응답의 `chat_model`·`retriever`·`top_k`가 run에 기록된 값과 다르면 (RAG 재배포) `FAILED`
 - 커밋 단위: run·samples INSERT 1회, 샘플별 응답 UPDATE·채점 UPDATE마다 (중단돼도 진행분 보존)
 - 성적표: `ragas_evaluation_run.avg_*` (실행별), `ragas_evaluation_samples` (샘플별)
-
-## RAG 연동 계약
-
-| 항목 | 값 |
-| --- | --- |
-| 호출 | `POST {RAG_BASE_URL}/internal/pipeline?debug=true` (`contexts`·`retrieved_chunks` 같은 무거운 trace는 debug 요청에만 포함) |
-| 요청 | `PipelineInput` = `{question, profile}` |
-| 응답 | `PipelineOutput` = `{answer, policies[], trace}` |
-| `trace` 필수 키 | `contexts` (list[str]), `retrieved_chunks` (`chunk_id`, `policy_no`, `score`, 선택 `content`), `latency_ms.total`, `tokens.prompt`·`tokens.completion`, `chat_model`, `retriever`, `top_k` |
-| `retrieved_contexts` | `trace.contexts` 그대로 (RAG가 LLM에 넘긴 정책별 근거 블록, 검색 순위 순). 청크 본문만이 아니라 신청 상태·방법·서류·기관·링크까지 포함해야 Faithfulness가 정확함 |
-| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본 |
-| run 기록 | `trace.chat_model`·`retriever`·`top_k` → `RagResult` → `ragas_evaluation_run.rag_chat_model`·`rag_retriever`·`rag_top_k` |
 
 ## 오프라인 모드 (`run --offline`)
 
@@ -343,109 +296,13 @@
 | `factual_correctness`, `reference_faithfulness` 추가 | 검색 없는 `baseline`과 공통 비교 지표 |
 | `answer_coverage` 추가 (`ALTER ... ADD COLUMN IF NOT EXISTS`) | 정답 밖 사실을 감점하지 않는 정답 누락 지표. 기존 행은 NULL |
 
-## 코드 구조 (`rag_ragas_evaluation/`)
-
-| 경로 | 역할 |
-| --- | --- |
-| `ragas_eval/__main__.py` | 진입점 |
-| `ragas_eval/cli.py` | `generate`, `run` |
-| `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
-| `ragas_eval/policy_source/policy_source.py` | `policy` → `Document` |
-| `ragas_eval/generate/generate.py` | `TestsetGenerator` → `policy_no` 복원 → `golden_candidates.jsonl` |
-| `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample` 타입 |
-| `ragas_eval/rag_client/rag_client.py` | RAG 호출, `RagResult` 타입 |
-| `ragas_eval/baseline_client/baseline_client.py` | LLM 직접 호출 → `RagResult` (`retrieved_contexts = []`) |
-| `ragas_eval/scorer/scorer.py` | 모드별 지표 `ascore`, `ScoreResult` 타입 |
-| `ragas_eval/repository/repository.py` | run/samples INSERT·UPDATE |
-| `ragas_eval/runner/runner.py` | 실행 순서 1~5, `--repeat`, `--offline`, `--baseline`, `--resume` |
-| `ragas_eval/report/report.py` | 결과 조회 → 마크다운 성적표 (`results/`) |
-| `db/ragas_schema.sql` | DDL |
-| `datasets/golden_vN.jsonl` | 확정 데이터셋 |
-| `k8s/ragas-eval-job.yaml` | 평가 Job |
-| `tests/` | 변환·저장 단위 테스트 |
-
-## 명령어
-
-- `ragas_eval`: 프로젝트 자체 패키지 (RAGAS 기본 명령어 아님)
-- `python -m ragas_eval generate --testset-size 100 --out datasets/golden_candidates.jsonl`
-- `python -m ragas_eval run --golden datasets/golden_v1.jsonl --repeat 3`
-- `python -m ragas_eval run --golden datasets/golden_v1.jsonl --offline`
-- `python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3`
-- `python -m ragas_eval run --golden datasets/golden_v1.jsonl --resume <run_id>`
-- `python -m ragas_eval report --run <run_id>`
-
-## 실행 환경
-
-| 항목 | 값 |
-| --- | --- |
-| 형태 | K8s Job (`generate`는 로컬) |
-| 데이터셋 | Job 이미지에 `datasets/` 포함 |
-| `backoffLimit` | 0 |
-| `activeDeadlineSeconds` | 3600 |
-| 시크릿 | `OPENAI_API_KEY`, `DATABASE_URL` |
-| 의존 | RAG Service (`RAG_BASE_URL`, `rag` 모드만) |
-| 동시성 | `asyncio.Semaphore(5)` |
-
-## 선행 작업
-
-| 항목 | 위치 | 담당 |
-| --- | --- | --- |
-| `policy_chunk` 청킹·임베딩 적재 | `youthlink-data-pipeline` | 홍용준 |
-| 파이프라인 구현 (`runner`, `retrieval/vector`, `generator`) | `YouthLink_RAG` | 이도경 |
-| `/internal/pipeline` trace (`contexts` 포함) | `YouthLink_RAG/app/api/internal.py` | 이도경 |
-| `load_policies.py` `__main__` 들여쓰기 수정 | `youthlink-data-pipeline` | 홍용준 |
-
-## 구현 계획
-
-| 단계 | 작업 | 방식 | 선행 |
-| --- | --- | --- | --- |
-| 1. 기반 | `pytest.ini`, `conftest.py`, 공유 타입 | 순차 | - |
-| 2. 독립 모듈 | `policy_source`, `dataset`, `rag_client`, `baseline_client`, `scorer`, `repository` | 병렬 6 | 1 |
-| 3. 조합 모듈 | `generate`, `runner` | 병렬 2 | `generate` ← `policy_source`, `dataset` / `runner` ← `dataset`, `rag_client`, `baseline_client`, `scorer`, `repository` |
-| 4. 배포 | `Dockerfile`, `k8s/ragas-eval-job.yaml` | 순차 | 3 |
-
-| 공유 타입 | 위치 | 사용처 |
-| --- | --- | --- |
-| `GoldenSample` | `dataset/dataset.py` | `generate`, `runner` |
-| `RagResult` (`answer`, `retrieved_contexts`, `chunks`, `retrieved_chunks`, `latency_ms`, `tokens`, `chat_model`, `retriever`, `top_k`) | `rag_client/rag_client.py` | `baseline_client`, `runner` |
-| `ScoreResult` (지표 6개, `errors`) | `scorer/scorer.py` | `runner`, `repository` |
-
 ## 구현 체크리스트
 
-- [x] 1-1. `pytest.ini` (`db`, `llm` 마커, 기본 `-m "not llm"`)
-- [x] 1-2. `tests/conftest.py` (가짜 정책·샘플 fixture)
-- [x] 1-3. `GoldenSample`, `RagResult`, `ScoreResult` 정의
-- [x] 2-1. `policy_source` + 테스트
-- [x] 2-2. `dataset` + 테스트
-- [x] 2-3. `rag_client` + 테스트 (`httpx.MockTransport`)
 - [x] 2-4. `scorer` + 테스트 (`AsyncMock`, NaN → NULL)
-- [x] 2-5. `repository` + 테스트 (mock, `db` 마커 통합, `mode`·지표 6개)
 - [x] 2-6. `scorer` 지표 6개 확장 + 모드별 적용 지표
-- [x] 2-7. `baseline_client` + 테스트 (`AsyncMock` OpenAI)
-- [x] 3-1. `generate` + 테스트
-- [x] 3-2. `runner` + 테스트 (`--repeat`, `--offline`, `--baseline`, 재개, 실패 시 `FAILED`)
-- [ ] 4-1. `Dockerfile` (Python 3.12, `datasets/` 포함)
-- [ ] 4-2. `k8s/ragas-eval-job.yaml`
-- [x] 5-1. `report` 패키지 뼈대
-- [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
-- [ ] 5-3. 노션·디스코드 전송 (요청 시)
 - [x] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
 - [x] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL, 분해 옵션 high/high 전달)
 - [x] 6-3. `repository`·`runner` 저장·집계·재개 반영 + 테스트
 - [x] 6-4. `report` 지표 7개 + 테스트
 - [x] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
-- [ ] 6-6. `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
-
-## 운영 체크리스트
-
-- [ ] 1. `db/ragas_schema.sql` 적용
-- [ ] 2. `policy` → `Document` → `TestsetGenerator`로 `question`, `ground_truth` 생성
-- [ ] 3. 검수 → `golden_v1.jsonl` 고정
-- [ ] 4. `run --offline`으로 채점 경로 검증
-- [ ] 4-1. `run --baseline --repeat 3`으로 할루시네이션 기준선 기록
-- [ ] 5. run INSERT, 질문 samples INSERT
-- [ ] 6. RAG 호출 → `answer`, `contexts` UPDATE
-- [ ] 7. 채점 → 모드별 지표 UPDATE
-- [ ] 8. 집계 → run UPDATE
-- [ ] 9. 3회 반복 → 평균·노이즈 폭 기록
-- [ ] 10. `baseline` vs `rag` 비교 (Factual Correctness, Reference Faithfulness, Answer Relevancy)
+- [ ] 6-6. golden_v2 `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
