@@ -150,7 +150,7 @@
 | 입력 | `response`, `reference` |
 | 계산 | ① `reference`를 주장 단위로 분해 ② 각 주장이 `response`에서 직접 추론되는지 판정 (0/1) ③ 1의 개수 ÷ 주장 수 |
 | 프롬프트 | ragas `ClaimDecompositionPrompt`, `NLIStatementPrompt` (`ragas.metrics.collections.factual_correctness.util`) 그대로. 새 프롬프트 작성 없음 |
-| 분해 옵션 | `atomicity="low"`, `coverage="low"` (`FactualCorrectness` 기본값과 동일, 기존 지표와 비교 가능) |
+| 분해 옵션 | `atomicity="high"`, `coverage="high"`. coverage low는 정답 정보 일부를 주장에서 버려 누락을 못 잡고, atomicity low는 묶인 주장 하나만 빠져도 통째로 X가 됨. `factual_correctness`는 기존 run과 비교를 위해 기본값(low/low) 유지 |
 | 호출 | 샘플당 채점 LLM 2회 (`factual_correctness`는 4회) |
 | 구현 | `scorer.py`에 프롬프트 클래스를 직접 호출하는 지표 클래스 추가. `FactualCorrectness`의 `_decompose_claims`·`_verify_claims`(내부 함수) 호출은 ragas 버전 변경에 깨질 수 있어 쓰지 않음 |
 | 실패 | 주장 0개, 판정 수 불일치, 예외 → NULL + `metadata.errors` (0점 아님) |
@@ -190,7 +190,6 @@
 | 결정 필요 | 선택지 |
 | --- | --- |
 | golden_v1 커버리지 측정 | ① 새 `rag`·`baseline` run 실행 (답변 LLM + 채점 비용) ② 저장된 답변으로 새 run을 만들어 채점만 하는 명령 추가 (답변 비용 없음, 기능 추가 필요) |
-| 분해 옵션 | `atomicity="high"`로 정답 주장을 더 잘게 쪼개면 일부 누락 시 덩어리 전체가 X 되는 문제 완화. 기존 지표와 조건이 달라지므로 실험 후 결정 |
 
 ## 평가 실행 순서
 
@@ -428,7 +427,7 @@
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
 - [ ] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
-- [ ] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL)
+- [ ] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL, 분해 옵션 high/high 전달)
 - [ ] 6-3. `repository`·`runner` 저장·집계·재개 반영 + 테스트
 - [ ] 6-4. `report` 지표 7개 + 테스트
 - [ ] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
