@@ -38,7 +38,7 @@ def run_row(**overrides):
         "avg_answer_relevancy": Decimal("0.812"),
         "avg_factual_correctness": Decimal("0.400"),
         "avg_reference_faithfulness": Decimal("0.550"),
-        "avg_answer_coverage": None,
+        "avg_answer_coverage": Decimal("0.900"),
         "started_at": datetime(2026, 10, 3, 10, 0, tzinfo=KST),
         "finished_at": datetime(2026, 10, 3, 10, 5, tzinfo=KST),
         "metadata": {"prompt_version": "baseline-v0", "scoring_prompt": "answer_relevancy-ko-v1"},
@@ -58,6 +58,7 @@ def sample_row(sample_id, factual, **overrides):
         "answer_relevancy": Decimal("0.800"),
         "factual_correctness": factual,
         "reference_faithfulness": Decimal("0.500"),
+        "answer_coverage": Decimal("0.750"),
         "latency_ms": 1200,
         "errors": None,
     }
@@ -74,6 +75,7 @@ def report_data(**overrides):
                 "avg_answer_relevancy": Decimal("0.800"),
                 "avg_factual_correctness": Decimal("0.400"),
                 "avg_reference_faithfulness": Decimal("0.500"),
+                "avg_answer_coverage": Decimal("0.300"),
             },
             {
                 "mode": "rag",
@@ -81,6 +83,7 @@ def report_data(**overrides):
                 "avg_answer_relevancy": Decimal("0.900"),
                 "avg_factual_correctness": Decimal("0.700"),
                 "avg_reference_faithfulness": Decimal("0.850"),
+                "avg_answer_coverage": Decimal("0.950"),
             },
         ],
         "samples": [sample_row("single-000001", Decimal("0.900")), sample_row("single-000002", Decimal("0.100"))],
@@ -97,6 +100,7 @@ def test_render_shows_run_conditions_and_averages():
     assert text.startswith("# RAGAS 평가 결과: golden_v1 / baseline / 반복 2")
     assert str(RUN_ID) in text and "SUCCEEDED" in text
     assert "| answer_relevancy | 0.812 |" in text
+    assert "| answer_coverage | 0.900 |" in text
     assert "| context_precision | - |" in text
     assert "baseline-v0" in text and "test-judge" in text
     assert "| 채점 프롬프트 | answer_relevancy-ko-v1 |" in text
@@ -107,6 +111,7 @@ def test_render_compares_modes_with_rag_minus_baseline():
 
     assert "| factual_correctness | 0.400 | 0.700 | +0.300 |" in text
     assert "| reference_faithfulness | 0.500 | 0.850 | +0.350 |" in text
+    assert "| answer_coverage | 0.300 | 0.950 | +0.650 |" in text
 
 
 def test_render_without_both_modes_has_no_difference_column():
@@ -132,6 +137,16 @@ def test_render_lists_lowest_samples_first_with_pending_counts():
     assert "single-000003" not in low
     assert "| 미응답 | 1 |" in text and "| 채점 실패 지표가 있는 샘플 | 1 |" in text
     assert "TimeoutError" in low
+
+
+def test_render_shows_answer_coverage_in_low_samples():
+    samples = [sample_row("single-000001", Decimal("0.100"), answer_coverage=Decimal("1.000"))]
+
+    text = render(report_data(samples=samples))
+
+    low = text.split("## 점수 낮은 샘플")[1]
+    assert "| factual_correctness | answer_coverage | reference_faithfulness |" in low
+    assert "| 0.100 | 1.000 | 0.500 |" in low
 
 
 def test_render_shows_truncated_answer_in_low_samples():
@@ -221,6 +236,21 @@ def test_report_writes_markdown_file(eval_schema_url, golden_record, monkeypatch
     assert path == tmp_path / "results" / "golden_v1" / f"golden_v1_offline_r1_{run_id}.md"
     assert "# RAGAS 평가 결과: golden_v1 / offline / 반복 1" in path.read_text(encoding="utf-8")
 
+@pytest.mark.db
+def test_load_report_data_reads_answer_coverage(eval_conn, golden_record):
+    version = f"golden_v{uuid4().int % 10**9}"
+    run_id = seed_run(eval_conn, golden_record, dataset_version=version, mode="rag", factual=0.2, finished=False)
+    update_scores(
+        eval_conn, run_id, golden_record["sample_id"], ScoreResult(factual_correctness=0.2, answer_coverage=1.0)
+    )
+    finish_run(eval_conn, run_id, "SUCCEEDED")
+
+    data = load_report_data(eval_conn, run_id)
+
+    assert data.samples[0]["answer_coverage"] == Decimal("1.000")
+    assert data.run["avg_answer_coverage"] == Decimal("1.000")
+    (rag,) = data.mode_averages
+    assert rag["avg_answer_coverage"] == Decimal("1.000")
 
 
 @pytest.mark.db

@@ -432,7 +432,7 @@
 - [x] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
 - [x] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL, 분해 옵션 high/high 전달)
 - [x] 6-3. `repository`·`runner` 저장·집계·재개 반영 + 테스트
-- [ ] 6-4. `report` 지표 7개 + 테스트
+- [x] 6-4. `report` 지표 7개 + 테스트
 - [x] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
 - [ ] 6-6. `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
 
