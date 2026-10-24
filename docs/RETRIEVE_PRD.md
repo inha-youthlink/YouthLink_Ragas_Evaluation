@@ -1,220 +1,111 @@
 # 검색 적중률·라우팅 평가 PRD
 
-RAG의 검색 단계별 적중(청킹 방식 비교 포함)과 질문 라우팅(intent·핸들러)을 코드 기반으로 채점한다. 채점 LLM을 쓰지 않는다.
-평가 종류 전체와 공통 역할·RAG 연동 계약·실행 환경은 `docs/PRD.md`, 답변 품질 평가(RAGAS)는 `docs/RAGAS_PRD.md`.
+답변 품질(RAGAS) 외의 두 평가를 다룬다. 둘 다 정답이 정해진 값이라 채점 LLM 없이 코드로 채점한다.
+평가 종류 전체·RAG 연동 계약·실행 환경은 `docs/PRD.md`, 답변 품질은 `docs/RAGAS_PRD.md`.
 
-## 개요
+## 한눈에 보기
 
 | 항목 | 검색 적중률 평가 | 라우팅 평가 |
 | --- | --- | --- |
-| 질문 | 정답 정책이 검색 → 후보 → 카드 단계마다 살아남는가 | 질문 분석이 기대 intent를 고르고, 라우터가 기대 핸들러를 고르는가 |
-| 요청 | 청킹 방식에 따라 top-k에 적절히 포함되는지 | 질문에 따라 핸들러 라우팅이 잘 되는지 |
-| 데이터셋 | golden_v2 (검수 시 기대 청크 종류 추가) | `routing_v1.jsonl` (신규) |
-| 비교 대상 | `trace.retrieved_chunks`, `trace.cards.candidate_nos`, `policies` | `trace.analysis.sub_queries[]`, `trace.handler` |
-| 채점 | 코드 (정책 번호·청크 종류 비교) | 코드 (값 일치) |
-| 비용 | RAG 호출만 (채점 LLM 없음) | RAG 호출만 |
-
-- RAGAS `context_recall`·`context_precision`과의 차이: LLM이 내용으로 판단하지 않고 정책 번호로 판단한다. 매번 같은 결과, 비용 없음. 대신 내용이 같은 다른 정책(동명 정책)을 가져오면 틀린 것으로 센다. 모호한 질문은 검수에서 제외한다
-- ragas 0.4 `collections`에는 ID 기반 검색 지표가 없어 직접 계산한다
-
-## RAG 현황 (YouthLink_RAG, 8주차 기준)
-
-| 항목 | 내용 | 평가 영향 |
-| --- | --- | --- |
-| 질문 분석 | `analyzer` → `trace.analysis` (`sub_queries[]`: `intent`, `standalone_question`, `search_query`, `target_policy_nos`, 지역·나이·취업·학력, `fallback_reason`) | intent 평가 가능 |
-| intent | `policy_list`, `policy_detail`, `eligibility`, `comparison`, `chitchat`, `out_of_scope`, `unclear` (`app/schemas/analysis.py`) | 라벨 값 |
-| 핸들러 | `trace.handler`는 항상 `default_rag`. 검색·상세·짧은 답변·되묻기 핸들러와 라우터 규칙은 8주차 작업 중 | 핸들러 평가는 라우터 PR 후 |
-| 1차 필터 | 질문 조건 + 프로필로 정책을 거른 뒤 검색 (`trace.conditions.filtered_policy_count`) | 질문 조건이 정답 정책을 거르면 검색 불가 |
-| 분리 검색 | 지역 조건이 있으면 지역·전국을 각각 `top_k=30`으로 검색해 이어 붙임 (`trace.conditions.split_search`) | `retrieved_chunks` 순서가 단일 순위가 아님 |
-| 후보·카드 | 검색 결과에서 후보 6개 → 카드 0~3개 (`trace.cards.candidate_nos`, `selected`) | 검색 → 후보 → 카드 단계별 적중 |
-| `contexts` | 후보 정책의 원본 근거 (검색된 청크가 아님) | RAGAS 근거 지표는 후보 선택 평가가 됨 |
-| 입력 | `history`, `current_policies` 추가 | 후속 질문·정책 지목 평가 가능 |
-| 토큰 | 분석 토큰은 `trace.analysis.tokens`, 생성 토큰은 `trace.tokens` | 지금은 생성 토큰만 저장 |
+| 묻는 것 | 정답 정책을 찾아서 사용자에게 보여 줬나 | 질문을 맞게 이해했나 |
+| 데이터셋 | `golden_vN` (답변 품질과 같은 데이터셋, 같은 run) | `routing_vN` (따로 만듦) |
+| 정답 | 질문마다 이미 있는 정답 정책 번호(`policy_no`) | 질문마다 적어 둔 기대 유형·지목 정책 |
+| 실행 | 기존 `run`에서 함께 계산 | 새 명령 `route` |
+| 비용 | 추가 없음 (RAG 호출은 답변 품질과 공유) | RAG 호출만 |
 
 ## 검색 적중률 평가
 
-### 데이터셋
+### 지표
 
-golden_v2를 그대로 쓴다. 정답 정책은 기존 `policy_no`라 정책 단위 지표에는 라벨을 추가하지 않는다. 확정된 golden_v1은 수정하지 않는다.
-
-| 필드 (golden_v2 검수 때 추가) | 타입 | 값 | 이유 |
-| --- | --- | --- | --- |
-| `mentions_policy_name` | bool | 질문에 정책 이름(또는 고유 사업명)이 들어 있으면 true | 섹션 청크는 모든 청크에 정책명이 있어 이름이 있는 질문은 청킹과 무관하게 쉽게 찾음. 결과를 나눠 봐야 청킹 비교가 됨 |
-| `expected_intent` | str | intent 값 | 대부분 `policy_detail`. 예외만 표시 |
-
-- 검수 추가 확인: 질문에 지역·나이 조건이 있으면 정답 정책이 그 조건의 1차 필터를 통과하는지. 충돌하면 "의심"
-- 이름 없이 내용으로 묻는 질문(예: "서울 사는 대학생 월세 대출 금리 낮은 거 있어?")을 늘린다. 정답 정책이 하나로 정해지지 않으면 제외
-
-### 지표: 단계별 적중 (주 지표)
-
-RAG는 다단계 검색(multi-stage retrieval)이다. 청크로 검색 → 정책 단위로 묶어 후보 선택(규칙 기반 리랭킹) → 후보 정책의 청크 전체를 근거로 생성(parent document retrieval) → 카드 선택. 정답 정책이 단계마다 살아남는 비율(단계별 재현율)을 재서 어디서 떨어지는지 찾는다.
-
-| 지표 | 단계 | 계산 | 낮으면 고칠 곳 |
-| --- | --- | --- | --- |
-| `retrieval_hit` | 검색 (`top_k` 청크) | `retrieved_chunks`에 정답 `policy_no` 청크가 있으면 1 | 청킹, 임베딩, 검색어 재작성, 1차 필터 |
-| `candidate_hit` | 후보 (`card_candidates`개 정책) | 정답 정책이 `trace.cards.candidate_nos`에 있으면 1 | 정책 묶기, 후보 정렬(점수·신청 상태·지역/전국 배분) |
-| `card_hit` | 카드 (0~3개) | 정답 정책이 `policies`에 있으면 1 | 생성 프롬프트의 카드 선택 |
-| (RAGAS) | 답변 | `docs/RAGAS_PRD.md` 지표 | 생성 프롬프트 |
-
-| run 집계 | 계산 |
-| --- | --- |
-| 단계별 적중률 | 각 지표 평균 (NULL 제외) |
-| 단계 간 손실 | 앞 단계 적중 중 다음 단계에서 빠진 비율 (예: 검색 적중인데 후보에 없음) |
-| 나눠 보기 | `mentions_policy_name`, `split_search`, 1차 필터 적용 여부별 |
-
-- 단계 경계는 코드에 고정하지 않는다. 검색 개수는 `trace.top_k`와 `retrieved_chunks`, 후보는 `trace.cards.candidate_nos`, 카드는 `policies`에서 읽는다. RAG 설정이 바뀌어도 그대로 동작하고, run 기록으로 바뀌기 전후를 비교한다
-- 검색 없는 핸들러(상세 등)는 `retrieved_chunks`·`candidate_nos`가 비어 검색·후보 지표 NULL, `errors` 미기록. 카드 지표는 계산
-- 질문 분석의 검색어 재작성이 LLM이라 같은 질문도 검색 결과가 흔들린다. `--repeat 3` 평균으로 본다
-
-### 지표: 순위 (보조)
+RAG는 정책을 검색 → 후보 → 카드 순서로 좁힌다. 정답 정책이 어디까지 살아남았는지 본다.
 
 | 지표 | 계산 | 용도 |
 | --- | --- | --- |
-| `hit_at_k` (k = 1, 3, 5, 10) | 정책 순위 상위 k개에 정답 정책이 있으면 1 | 청킹 방식 비교 |
-| `reciprocal_rank` | 정답 정책 순위의 역수, 없으면 0. run 평균이 MRR | 적중률이 비슷할 때 정답을 더 위로 올리는 쪽 판단 |
-| `policies_in_top_k` | `retrieved_chunks`의 서로 다른 정책 수 | 같은 정책 청크가 검색 칸을 얼마나 차지하는지 |
+| **`card_hit`** | 정답 정책이 카드(`policies`)에 있으면 1 | **주 지표.** 사용자가 실제로 받은 결과 |
+| `candidate_hit` | 정답 정책이 후보(`trace.cards.candidate_nos`)에 있으면 1 | 진단용. 카드에서 빠졌을 때 원인 찾기 |
+| `retrieval_hit` | 정답 정책 청크가 검색 결과(`trace.retrieved_chunks`)에 있으면 1 | 진단용 |
+| `hit_at_k` (k = 1, 3, 5, 10), MRR | 검색 결과의 정책 순위에서 정답 위치 | 청킹 방식 비교 |
 
-- 정책 순위: 청크를 점수 내림차순으로 정렬한 뒤 정책이 처음 나온 순서 (MaxP 집계)
-- 후보 6개가 한꺼번에 LLM에 들어가므로 후보 안의 순위는 답변에 영향이 작다. 그래서 보조 지표로 둔다
+| 카드 | 후보 | 검색 | 원인 |
+| --- | --- | --- | --- |
+| O | O | O | 정상 |
+| X | O | O | 카드 선택 (생성 프롬프트) |
+| X | X | O | 후보 선택 (정책 묶기, 정렬) |
+| X | X | X | 검색 (청킹, 임베딩, 검색어, 1차 필터) |
 
-### 보류: 청크 종류 적중
+### 규칙
 
-| 항목 | 내용 |
-| --- | --- |
-| 지표 | 정답 정책의 기대 섹션 청크(`SUMMARY`·`ELIGIBILITY`·`SUPPORT`·`APPLICATION`)가 상위 k 청크에 있는가 |
-| 보류 이유 | 후보에 든 정책은 청크 전체가 근거로 들어가(`get_documents`) 어떤 섹션이 검색됐는지가 답변에 영향이 없음 |
-| 재검토 | RAG가 섹션별 검색이나 검색된 청크만 근거로 쓰는 방식으로 바뀌면 `expected_chunk_types` 라벨과 함께 추가 |
+- 단계 경계(검색 개수, 후보 수)는 코드에 고정하지 않고 응답에서 읽는다
+- 정책 순위는 청크를 점수 내림차순으로 정렬한 뒤 정책이 처음 나온 순서 (지역·전국 분리 검색도 합쳐서 정렬)
+- 검색이 없는 응답(빈 `retrieved_chunks`)은 검색·후보 지표를 NULL로 둔다
+- 검색어를 LLM이 다시 쓰므로 같은 질문도 결과가 흔들린다. `--repeat 3` 평균으로 본다
+- 결과를 질문에 조건(지역·나이 등)이 있는지로 나눠 보면 1차 필터 영향을 함께 볼 수 있다
 
 ### 청킹 방식 비교
 
-| 항목 | 값 |
-| --- | --- |
-| 방법 | 같은 golden으로 청킹 방식별 run을 따로 실행해 `retrieval_hit`·`candidate_hit` 평균 비교. 비슷하면 `hit_at_k`·MRR로 판단 |
-| 해석 | `mentions_policy_name = false` 질문에서의 차이를 주로 본다 |
-| 조건 기록 | run `metadata`에 청크 버전, `top_k`, `embedding_model` |
-| 청크 적재 | ETL 담당 (`policy_chunk`는 서비스 테이블, 이 저장소에서 쓰기 금지) |
+같은 `golden_vN`으로 청킹 방식별 run을 따로 돌려 `retrieval_hit`, `hit_at_k`, MRR 평균을 비교한다. 청크 적재는 ETL 담당이 한다 (`policy_chunk`는 서비스 테이블이라 이 저장소에서 쓰지 않음).
 
 ## 라우팅 평가
 
-### 데이터셋 (`datasets/routing_v1.jsonl`)
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| `sample_id` | str | `route-000001` |
-| `question` | str | 사용자 질문 |
-| `history` | list | `ConversationTurn` (후속 질문만, 없으면 `[]`) |
-| `current_policies` | list | `PolicyRef` (후속 질문만) |
-| `profile` | object | `{}` 기본 |
-| `expected_intent` | str | intent 값 |
-| `expected_handler` | str \| null | 라우터 PR 후 채움 |
-| `expected_target_policy_nos` | list[str] | 정책 지목 질문만 ("두 번째 거" → 직전 목록 2번째) |
-| `reviewed` | bool | 검수 |
-
-| 구성 | 건수 |
-| --- | --- |
-| intent 7종 | 각 10~15건 |
-| 애매한 질문 (경계 사례) | 10건 내외 |
-| 후속 질문 (정책 지목) | 10건 내외 |
-| 복합 질문 (하위 질문 2개 이상) | 5건 내외 |
-
-- 작성: Claude가 초안 작성 (LLM API 호출 없음) → 사용자 검수 → 확정
-
 ### 지표
 
-| 지표 | 계산 |
-| --- | --- |
-| `intent_correct` | 하위 질문이 1개이고 `intent` = `expected_intent`면 1 |
-| `handler_correct` | `trace.handler` = `expected_handler`면 1 (라우터 PR 후) |
-| `target_correct` | `target_policy_nos` 집합 = `expected_target_policy_nos` 집합이면 1 |
-| `sub_query_count_correct` | 하위 질문 수가 기대와 같으면 1 (복합 질문) |
-| run 집계 | 정확도, intent별 정밀도·재현율, 혼동 행렬 |
+| 지표 | 묻는 것 | 계산 | 응답 값 |
+| --- | --- | --- | --- |
+| `intent_correct` | 질문 유형을 맞게 분류했나 | 유형 = 기대 유형이면 1 | `trace.analysis.sub_queries[].intent` |
+| `target_correct` | "두 번째 정책"처럼 지목한 정책을 맞게 찾았나 | 지목 정책 = 기대 정책이면 1 | `trace.analysis.sub_queries[].target_policy_nos` |
+| `context_kept` | 이어지는 질문에서 같은 정책을 유지했나 | 현재 정책 = 기대 정책이면 1 | 응답 `current_policies` |
+| 분석 실패율 | 분석이 실패한 비율 (실패해도 답변은 나옴) | `fallback_reason`이 있는 비율 | `trace.analysis.fallback_reason` |
+| `handler_correct` | 맞는 핸들러로 보냈나 | 핸들러 = 기대 핸들러면 1 | `trace.handler` (라우터 구현 후) |
 
-- 분석 실패(`fallback_reason` 있음)는 오답으로 세고 사유를 따로 집계
+- 유형 7종: `policy_list`, `policy_detail`, `eligibility`, `comparison`, `chitchat`, `out_of_scope`, `unclear`
+- run 집계: 정확도, 유형별 정확도, 혼동 행렬(무엇을 무엇으로 착각했나)
 
-## RAG 계약 변경 대응
-
-| 항목 | 변경 |
-| --- | --- |
-| 분석 토큰 | `trace.analysis.tokens`를 `metadata.tokens`에 함께 저장 |
-| 빈 근거 | `contexts`·`retrieved_chunks`가 빈 응답에서 RAGAS 근거 지표가 0점이 아니라 NULL인지 확인 |
-| 입력 | 라우팅 샘플은 `history`, `current_policies`를 함께 보냄 |
-| 답변 결과 종류 (합의 후) | 응답 `outcome`을 `metadata`에 저장. 아래 "시나리오 평가" |
-| 계약 문서 | `docs/PRD.md` "RAG 연동 계약" 갱신 |
-
-## 결정 필요
-
-| 항목 | 선택지 |
-| --- | --- |
-| 결과 저장 | ① `ragas_evaluation_samples`에 검색 지표 컬럼 추가 + 라우팅은 새 테이블 `ragas_evaluation_routing` ② 둘 다 `metadata`에만 저장하고 보고서에서 계산 (스키마 변경 없음) |
-| 실행 명령 | 검색: 기존 `run`에서 함께 계산 / 라우팅: 새 서브커맨드 `route` (golden과 데이터셋·지표가 달라 분리) |
-| 분리 검색 순위 | 점수 내림차순 통합 순위(위 정의) / 지역·전국 따로 집계 |
-| 청크 버전 기록 | RAG trace에 추가 요청 / 실행 시 `--chunk-version` 인자로 직접 입력 |
-
-## 시나리오 평가 (RAG 합의 후)
-
-golden_v2에서는 아래 질문을 검수에서 제외한다 (`ragas-dataset-review` 판정 기준). 단일 정답 채점이 맞지 않아 별도 데이터셋으로 기대 동작을 시험한다.
-
-| 시나리오 | 예 | 제외 이유 |
-| --- | --- | --- |
-| 페르소나 불일치 | "재직자인데" + 미취업자 사업 | 1차 필터가 정답 정책을 먼저 뺌 |
-| 동명·유사 정책 | 지역만 다름, 해마다 재등록, 전국판 | 질문으로 정답 정책 하나를 특정할 수 없음 |
-
-### 답변 결과 종류 필드 (RAG에 요청, `합의사항.md`)
-
-RAG 응답에 답변 결과 종류를 값으로 받으면 기대 동작을 코드로 채점한다 (LLM 판정 없음).
-
-| `outcome` | 의미 | 시험 |
-| --- | --- | --- |
-| `answered` | 정상 안내 | 대조군 (맞는 질문자 설정·지역 포함 질문) |
-| `not_eligible` | 사용자가 정책 대상이 아님 | 페르소나 불일치 |
-| `ambiguous` | 정책을 특정할 수 없어 되물음 | 동명 정책을 이름만으로 물음 |
-| `not_enough` | 관련 정책·근거 없음 | DB에 없는 정책, 범위 밖 질문 |
-
-- 필드는 RAG가 스스로 신고한 값이라, 초기 몇 회는 답변 본문과 맞는지 표본 확인
-- 필드 이름·위치·값 판단 규칙은 RAG 담당과 합의
-
-### 데이터셋 (`datasets/scenario_v1.jsonl`, 합의 후 작성)
-
-| 시나리오 | 만드는 법 | 구성 |
-| --- | --- | --- |
-| 페르소나 불일치 | DB 대상 조건(`policy_eligibility_code`, 나이, `policy_region`)에서 허용하지 않는 값을 질문자 설정으로 넣음. golden_v2 검수에서 제외한 질문도 재료로 씀 | 정책 10~15개 × (맞는 설정 `answered`, 안 맞는 설정 `not_eligible`) |
-| 동명 정책 | 검수 스킬의 동명 조회 SQL로 같은 이름 묶음을 종류별로 고름 | 묶음 10개 × (이름만 `ambiguous`, 지역 포함 `answered`, 이름만 + `profile` 지역 `answered`) |
+### 데이터셋 (`datasets/routing_vN.jsonl`)
 
 | 필드 | 설명 |
 | --- | --- |
-| `expected_outcome` | 위 4개 값 |
-| `policy_no` | 정답 정책 (`answered`만) |
-| `profile` | 동명 정책 profile 지역 질문만 |
+| `sample_id` | `route-000001` |
+| `question` | 사용자 질문 |
+| `history` | 앞 턴의 질문·답변·카드 목록 (이어지는 질문만, 없으면 `[]`) |
+| `current_policies` | 현재 대화 중인 정책 (이어지는 질문만) |
+| `expected_intent` | 기대 유형 |
+| `expected_target_policy_nos` | 지목 질문의 기대 정책 |
+| `expected_handler` | 라우터 구현 후 채움 |
+| `reviewed` | 검수 여부 |
 
-| 지표 | 계산 |
+| 구성 | 건수 |
 | --- | --- |
-| `outcome_correct` | 응답 `outcome` = `expected_outcome`이면 1 |
-| `policy_hit` | `answered` 질문에서 정답 정책이 카드에 있으면 1 |
-| 동명 완화 기준 | 같은 이름 묶음 정책을 가져오면 적중으로 보는 값도 함께 계산할지 (결정 필요) |
+| 유형 7종 | 각 10~15건 |
+| 지목·이어지는 질문 | 10~20건 |
 
-## 팀원 확인 사항
+- 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수
+- RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
+- 이어지는 질문은 앞 턴을 고정값으로 넣고 한 번만 호출한다
 
-| 대상 | 내용 |
+## 결과 저장
+
+- 계산한 지표는 `ragas_evaluation_samples.metadata`에 저장한다 (스키마 변경 없음)
+- 라우팅 run은 `ragas_evaluation_run.mode`에 새 값이 필요하다. 추가할 때 `db/ragas_schema.sql`, `docs/Schema.md`, `docs/RAGAS_PRD.md`를 함께 갱신
+
+## RAG 담당 확인 사항
+
+| 확인 | 이유 |
 | --- | --- |
-| RAG 담당 | `outcome` 필드 추가와 값 판단 규칙, 1차 필터 통과 정책 목록(지금은 필터 후 정책 수만 있어 정답 정책이 필터에서 빠졌는지 검색에서 놓쳤는지 구분 불가), 청크 버전 trace 추가, 라우터·핸들러 PR 일정과 `trace.handler` 값 목록, 실제 후보 수(`CARD_CANDIDATES`), 분리 검색 순위 해석, 평가 대상 RAG 서버·DB. 보낸 내용은 `합의사항.md` |
-| ETL 담당 | 비교할 청킹 방식 목록과 적재 시점 |
+| 평가 대상 서버와 DB | 로컬 DB는 정책당 청크 1개 임시본이라 실제와 다름 |
+| 라우터·핸들러 구현 일정, `trace.handler` 값 | `handler_correct` 준비 |
+| 앞 턴을 고정값으로 넣어도 실제 대화와 같은 분석 결과가 나오는지, 카드 번호 규칙 | 라우팅 데이터셋 작성 |
+| 실제 후보 수 (문서 5, 코드 기본값 6) | 후보 단계 해석 |
 
 ## 구현 체크리스트
 
-- [ ] R-1. "결정 필요" 항목 사용자 확인, 이 문서 갱신
-- [ ] R-2. `docs/PRD.md` "RAG 연동 계약"에 분석 토큰·빈 근거·`history` 반영
-- [ ] R-3. `GoldenSample`에 `mentions_policy_name`, `expected_intent` (선택 필드) + 테스트
-- [ ] R-4. 단계별 적중(`retrieval_hit`, `candidate_hit`, `card_hit`)과 순위 보조 지표 계산 (`retrieval` 모듈, 순수 함수) + 테스트 (분리 검색, 빈 검색, 동점, 단계 경계를 trace에서 읽음)
-- [x] R-5a. `rag_client`가 `trace.cards`, 카드 정책 번호(`policies`), `trace.analysis`, `trace.handler`, `trace.conditions`를 `metadata`에 원본 저장 + 테스트 (선택 키, 없으면 저장 안 함)
-- [ ] R-5b. 계산한 지표 저장 (R-1 결정에 따라 스키마 또는 `metadata`) + 테스트
-- [ ] R-6. `report`에 단계별 적중률·단계 간 손실 표, 나눠 보기 + 테스트
-- [x] R-7. `rag_client`가 분석 토큰을 `metadata.tokens`의 `analysis_prompt_tokens`·`analysis_completion_tokens`로 저장 + 테스트
-- [ ] R-8. golden_v2 검수에 `mentions_policy_name`·1차 필터 확인 추가, 이름 없는 질문 확보 (`ragas-dataset-review` 스킬 갱신)
+- [x] R-1. `rag_client`가 후보(`trace.cards`), 카드 정책 번호, 질문 분석, 핸들러, 필터 조건, 분석 토큰을 `metadata`에 저장 + 테스트
+- [ ] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `hit_at_k`, MRR) + 테스트
+- [ ] R-3. `run`에서 R-2를 계산해 `metadata`에 저장 + 테스트
+- [ ] R-4. 보고서에 검색 적중률 표 + 테스트
+- [ ] R-5. `rag_client`가 `history`, `current_policies`를 보내고 응답 `current_policies`를 저장 + 테스트
+- [ ] R-6. `routing_vN` 데이터셋 로드·검사 + 테스트
+- [ ] R-7. `route` 명령 (호출 → 라우팅 지표 채점 → 저장) + 테스트
+- [ ] R-8. 보고서에 라우팅 표 (정확도, 혼동 행렬) + 테스트
 - [ ] R-9. `routing_v1.jsonl` 초안 → 사용자 검수 → 확정
-- [ ] R-10. `route` 서브커맨드 (intent·정책 지목 채점) + 테스트
-- [ ] R-11. 라우터 PR 후 `expected_handler` 채우고 `handler_correct` 추가
-- [ ] R-12. 실행: golden_v2 검색 지표, `routing_v1` 라우팅 지표 (RAG 호출 비용, 사용자 확인 후)
-- [ ] R-13. `합의사항.md` 전달, 회신 받아 이 문서 갱신
-- [ ] R-14. (합의 후) `rag_client`가 `outcome` 저장 + 테스트
-- [ ] R-15. (합의 후) `scenario_v1.jsonl` 초안 → 사용자 검수 → 확정
-- [ ] R-16. (합의 후) 시나리오 채점(`outcome_correct`, `policy_hit`) + 테스트
+- [ ] R-10. RAG 담당 확인 사항 회신 반영
+- [ ] R-11. 라우터 구현 후 `expected_handler`, `handler_correct` 추가
