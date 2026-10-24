@@ -17,6 +17,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
   - `rag_client/`: RAG 호출
   - `baseline_client/`: RAG 없이 LLM 직접 호출 (`--baseline`)
   - `scorer/`: 채점
+  - `retrieval/`: 검색 적중률 계산 (채점 LLM 없음)
   - `repository/`: 평가 테이블 쓰기
   - `runner/`: 실행 순서 조율
   - `report/`: 결과 조회 → 마크다운 성적표 (`results/`)

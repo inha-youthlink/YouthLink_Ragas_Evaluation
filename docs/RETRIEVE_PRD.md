@@ -121,7 +121,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 
 - [x] R-1. `rag_client`가 후보(`trace.cards`), 카드 정책 번호, 질문 분석, 핸들러, 필터 조건, 분석 토큰을 `metadata`에 저장 + 테스트
 - [ ] R-1a. `rag_client`가 `trace.filtered_policy_nos`를 `metadata`에 저장 (키 없으면 생략) + 테스트
-- [ ] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `filter_hit`, `hit_at_k`, MRR) + 테스트
+- [x] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `filter_hit`, `hit_at_k`, 샘플별 `rank`·`reciprocal_rank`. MRR은 run 평균이라 R-4) + 테스트
 - [ ] R-3. `run`에서 R-2를 계산해 `metadata`에 저장 + 테스트
 - [ ] R-4. 보고서에 검색 적중률 표 + 테스트
 - [ ] R-6. `routing_vN` 데이터셋 로드·검사 + 테스트

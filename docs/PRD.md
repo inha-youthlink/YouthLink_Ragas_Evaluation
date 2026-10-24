@@ -92,6 +92,7 @@
 | `ragas_eval/rag_client/rag_client.py` | RAG 호출, `RagResult` 타입 |
 | `ragas_eval/baseline_client/baseline_client.py` | LLM 직접 호출 → `RagResult` (`retrieved_contexts = []`) |
 | `ragas_eval/scorer/scorer.py` | 모드별 지표 `ascore`, `ScoreResult` 타입 |
+| `ragas_eval/retrieval/retrieval.py` | 검색 적중률 계산 (`samples.metadata`의 trace 원본 → 카드·후보·검색·필터 적중, Hit@k, 역순위) |
 | `ragas_eval/repository/repository.py` | run/samples INSERT·UPDATE |
 | `ragas_eval/runner/runner.py` | 실행 순서 1~5, `--repeat`, `--offline`, `--baseline`, `--resume` |
 | `ragas_eval/report/report.py` | 결과 조회 → 마크다운 성적표 (`results/`) |
