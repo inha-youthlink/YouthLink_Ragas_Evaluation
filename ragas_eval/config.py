@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     gen_model: str
     judge_model: str
-    embedding_model: str = "text-embedding-3-small"
+    embedding_model: str = "bedrock-titan-embed-v2"
     # run --baseline에서만 사용. RAG chat_model과 같은 모델로 둬야 공정 비교가 된다
     baseline_model: str | None = None
     # baseline·채점 OpenAI 호출. 공정 비교를 위해 RAG OPENAI_TIMEOUT·OPENAI_MAX_RETRIES 기본값과 맞춘다

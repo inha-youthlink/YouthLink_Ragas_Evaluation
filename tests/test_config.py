@@ -55,7 +55,7 @@ def test_empty_optional_values_fall_back_to_defaults(required_env, monkeypatch):
     settings = Settings(_env_file=None)
 
     assert (settings.openai_timeout, settings.openai_max_retries) == (30.0, 2)
-    assert (settings.embedding_model, settings.baseline_model) == ("text-embedding-3-small", None)
+    assert (settings.embedding_model, settings.baseline_model) == ("bedrock-titan-embed-v2", None)
 
 
 def test_empty_required_value_fails(required_env, monkeypatch):
