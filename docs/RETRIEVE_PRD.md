@@ -74,14 +74,16 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 
 | 지표 | 묻는 것 | 계산 | 응답 값 |
 | --- | --- | --- | --- |
-| `intent_correct` | 질문 유형을 맞게 분류했나 | 유형 = 기대 유형이면 1 | `trace.analysis.sub_queries[].intent` |
-| `target_correct` | "두 번째 정책"처럼 지목한 정책을 맞게 찾았나 | 지목 정책 = 기대 정책이면 1 | `trace.analysis.sub_queries[].target_policy_nos` |
-| `context_kept` | 이어지는 질문에서 같은 정책을 유지했나 | 현재 정책 = 기대 정책이면 1 | 응답 `current_policies` |
+| `intent_correct` | 질문 유형을 맞게 분류했나 | 하위 질문 유형 묶음 = `expected_intent` 묶음이면 1 (순서 무관, 개수 포함) | `trace.analysis.sub_queries[].intent` |
+| `target_correct` | "두 번째 정책"처럼 지목한 정책을 맞게 찾았나 | 하위 질문 지목 정책 합집합 = `expected_target_policy_nos` 집합이면 1 | `trace.analysis.sub_queries[].target_policy_nos` |
+| `context_kept` | 이어지는 질문에서 현재 정책을 맞게 유지·교체·초기화했나 | 응답 현재 정책 집합 = `expected_current_policy_nos` 집합이면 1 | 응답 `current_policies` |
 | 분석 실패율 | 분석이 실패한 비율 (실패해도 답변은 나옴) | `fallback_reason`이 있는 비율 | `trace.analysis.fallback_reason` |
 | `handler_correct` | 맞는 핸들러로 보냈나 | 핸들러 = 기대 핸들러면 1 | `trace.handler` (라우터 구현 후) |
 
 - 유형 7종: `policy_list`, `policy_detail`, `eligibility`, `comparison`, `chitchat`, `out_of_scope`, `unclear`
 - run 집계: 정확도, 유형별 정확도, 혼동 행렬(무엇을 무엇으로 착각했나)
+- 유형별 정확도·혼동 행렬은 하위 질문이 1개인 샘플(기대·응답 모두)로만 집계한다. 여러 개인 샘플은 `intent_correct`에만 반영
+- 현재 정책 갱신 규칙 (RAG `current_policy.py`): 지목 정책이 있으면 교체, 없고 화제 전환이면 비움, 아니면 유지. 분석 실패 시 입력 그대로
 
 ### 데이터셋 (`datasets/routing_vN.jsonl`)
 
@@ -91,8 +93,9 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | `question` | 사용자 질문 |
 | `history` | 앞 턴의 질문·답변·카드 목록 (이어지는 질문만, 없으면 `[]`) |
 | `current_policies` | 현재 대화 중인 정책 (이어지는 질문만) |
-| `expected_intent` | 기대 유형 |
-| `expected_target_policy_nos` | 지목 질문의 기대 정책 |
+| `expected_intent` | 기대 유형 목록 (list[str], 하위 질문마다 1개. 대부분 1개) |
+| `expected_target_policy_nos` | 지목 질문의 기대 정책 (지목 없으면 `[]`) |
+| `expected_current_policy_nos` | 턴이 끝난 뒤 기대 현재 정책 (위 갱신 규칙 기준) |
 | `expected_handler` | 라우터 구현 후 채움 |
 | `reviewed` | 검수 여부 |
 
@@ -100,6 +103,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | --- | --- |
 | 유형 7종 | 각 10~15건 |
 | 지목·이어지는 질문 | 10~20건 |
+| 하위 질문이 여러 개인 질문 | 5~10건 |
 
 - 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
