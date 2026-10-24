@@ -18,6 +18,7 @@ from ragas_eval.dataset.dataset import GoldenSample, load_evaluation_samples, lo
 from ragas_eval.rag_client import rag_client
 from ragas_eval.rag_client.rag_client import RagResult
 from ragas_eval.repository import repository
+from ragas_eval.retrieval import retrieval
 from ragas_eval.scorer import scorer
 from ragas_eval.scorer.scorer import Mode, ScoreResult
 
@@ -217,7 +218,7 @@ async def _process(
                 # 응답 실패는 answer NULL로 남겨 --resume에서 다시 호출한다. 응답 본문·비밀값은 남기지 않는다
                 logger.warning("응답 실패, answer NULL 유지: sample_id=%s %s", sample.sample_id, type(e).__name__)
                 return
-            repository.update_answer(conn, run_id, sample.sample_id, result)
+            repository.update_answer(conn, run_id, sample.sample_id, result, _retrieval_metrics(mode, sample, result))
             if mode == "rag":
                 _record_rag_settings(conn, run_id, result)
             conn.commit()
@@ -228,6 +229,15 @@ async def _process(
         score = await workers.score(sample, answer, contexts)
         repository.update_scores(conn, run_id, sample.sample_id, score)
         conn.commit()
+
+
+def _retrieval_metrics(mode: Mode, sample: GoldenSample, result: RagResult) -> dict[str, Any] | None:
+    # baseline·offline은 검색을 하지 않아 계산하지 않는다. 입력은 update_answer가 metadata에 남기는 값과 같다
+    if mode != "rag":
+        return None
+    return retrieval.compute_retrieval_metrics(
+        sample.policy_no, {"retrieved_chunks": result.retrieved_chunks, **result.trace_details}
+    )
 
 
 def _record_rag_settings(conn: psycopg.Connection, run_id: UUID, result: RagResult) -> None:

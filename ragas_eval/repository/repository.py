@@ -214,13 +214,22 @@ def insert_samples(conn: psycopg.Connection, run_id: UUID, samples: Iterable[Gol
     return len(rows)
 
 
-def update_answer(conn: psycopg.Connection, run_id: UUID, sample_id: str, result: RagResult) -> None:
+def update_answer(
+    conn: psycopg.Connection,
+    run_id: UUID,
+    sample_id: str,
+    result: RagResult,
+    retrieval: Mapping[str, Any] | None = None,
+) -> None:
     patch: dict[str, Any] = {}
     if result.tokens:
         patch["tokens"] = result.tokens
     if result.retrieved_chunks:
         patch["retrieved_chunks"] = result.retrieved_chunks
     patch |= result.trace_details
+    # 응답과 같은 UPDATE에 넣어, 재개 시 채점만 남은 샘플도 검색 적중률이 이미 있게 한다
+    if retrieval is not None:
+        patch["retrieval"] = dict(retrieval)
     params = {
         "run_id": run_id,
         "sample_id": sample_id,

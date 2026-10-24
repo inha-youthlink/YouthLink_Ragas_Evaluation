@@ -172,6 +172,24 @@ def test_update_answer_keeps_trace_details_in_metadata(eval_conn, filled_run, ra
 
 
 @pytest.mark.db
+def test_update_answer_stores_retrieval_metrics_in_metadata(eval_conn, filled_run, rag_payload):
+    metrics = {"card_hit": 1, "filter_hit": None, "rank": 2, "reciprocal_rank": 0.5}
+
+    update_answer(eval_conn, filled_run, "single-000001", rag_result(rag_payload), retrieval=metrics)
+
+    metadata = sample_row(eval_conn, filled_run, "single-000001")["metadata"]
+    assert metadata["retrieval"] == metrics
+    assert metadata["tokens"] == {"prompt_tokens": 850, "completion_tokens": 40}
+
+
+@pytest.mark.db
+def test_update_answer_without_retrieval_metrics_adds_no_key(eval_conn, filled_run, rag_payload):
+    update_answer(eval_conn, filled_run, "single-000001", rag_result(rag_payload))
+
+    assert "retrieval" not in sample_row(eval_conn, filled_run, "single-000001")["metadata"]
+
+
+@pytest.mark.db
 def test_update_answer_keeps_retrieved_chunks_in_metadata(eval_conn, filled_run, rag_payload):
     retrieved = rag_payload["trace"]["retrieved_chunks"]
     result = rag_result(rag_payload).model_copy(update={"retrieved_chunks": retrieved})

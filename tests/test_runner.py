@@ -220,6 +220,52 @@ def test_execute_records_rag_settings_only_in_rag_mode(conn, golden_record):
     assert settings_of(offline_run) == (None, None, None)
 
 
+def answer_with_trace(sample):
+    other = "TEST-9999"
+    return rag_answer(
+        sample,
+        retrieved_chunks=[
+            {"chunk_id": "c1", "policy_no": other, "score": 0.9},
+            {"chunk_id": "c2", "policy_no": sample.policy_no, "score": 0.8},
+        ],
+        trace_details={"cards": {"candidate_nos": [other, sample.policy_no]}, "card_policy_nos": [other]},
+    )
+
+
+@pytest.mark.db
+def test_execute_stores_retrieval_metrics_in_rag_mode(conn, golden_record):
+    samples = make_samples(golden_record, 1)
+    run_id = new_run(conn, samples, mode="rag")
+    recorder = Recorder()
+
+    async def answer(sample):
+        return answer_with_trace(sample)
+
+    asyncio.run(execute(conn, run_id, "rag", samples, Workers(answer, recorder.score)))
+
+    metadata = fetch(conn, "SELECT metadata FROM ragas_evaluation_samples WHERE run_id = %s", [run_id])[0]["metadata"]
+    retrieval = metadata["retrieval"]
+    assert (retrieval["card_hit"], retrieval["candidate_hit"], retrieval["retrieval_hit"]) == (0, 1, 1)
+    assert (retrieval["rank"], retrieval["hit_at_1"], retrieval["hit_at_3"]) == (2, 0, 1)
+    assert retrieval["filter_hit"] is None
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("mode", ["baseline", "offline"])
+def test_execute_skips_retrieval_metrics_without_search(conn, golden_record, mode):
+    samples = make_samples(golden_record, 1)
+    run_id = new_run(conn, samples, mode=mode)
+    recorder = Recorder()
+
+    async def answer(sample):
+        return answer_with_trace(sample)
+
+    asyncio.run(execute(conn, run_id, mode, samples, Workers(answer, recorder.score)))
+
+    metadata = fetch(conn, "SELECT metadata FROM ragas_evaluation_samples WHERE run_id = %s", [run_id])[0]["metadata"]
+    assert "retrieval" not in metadata
+
+
 @pytest.mark.db
 def test_answer_failure_leaves_run_running(conn, golden_record, caplog):
     samples = make_samples(golden_record, 3)

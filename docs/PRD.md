@@ -76,7 +76,7 @@
 | `trace` 필수 키 | `contexts` (list[str]), `retrieved_chunks` (`chunk_id`, `policy_no`, `score`, 선택 `content`), `latency_ms.total`, `tokens.prompt`·`tokens.completion`, `chat_model`, `retriever`, `top_k` |
 | `trace` 선택 키 | `cards` (`candidate_nos` list[str]), `analysis` (`tokens`), `handler` (str), `conditions`, `filtered_policy_nos` (list[str] 또는 null, debug 요청에만), 응답 `policies[].policy_no`. 있으면 형식만 확인 |
 | `retrieved_contexts` | `trace.contexts` 그대로 (RAG가 LLM에 넘긴 정책별 근거 블록, 검색 순위 순). 청크 본문만이 아니라 신청 상태·방법·서류·기관·링크까지 포함해야 Faithfulness가 정확함 |
-| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`conditions`·`filtered_policy_nos` = trace 원본, `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만) |
+| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`conditions`·`filtered_policy_nos` = trace 원본, `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만), `metadata.retrieval` = 검색 적중률 계산 결과 (`rag` 모드만, `docs/RETRIEVE_PRD.md` "결과 저장") |
 | run 기록 | `trace.chat_model`·`retriever`·`top_k` → `RagResult` → `ragas_evaluation_run.rag_chat_model`·`rag_retriever`·`rag_top_k` |
 
 ## 코드 구조 (`rag_ragas_evaluation/`)
