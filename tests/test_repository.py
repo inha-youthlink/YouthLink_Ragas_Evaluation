@@ -181,6 +181,7 @@ def test_update_scores_stores_metrics_and_errors_with_tokens(eval_conn, filled_r
         answer_relevancy=0.75,
         factual_correctness=0.6666,
         reference_faithfulness=0.0,
+        answer_coverage=0.5,
         errors={"faithfulness": "TimeoutError"},
     )
 
@@ -191,6 +192,7 @@ def test_update_scores_stores_metrics_and_errors_with_tokens(eval_conn, filled_r
     assert row["faithfulness"] is None
     assert row["factual_correctness"] == Decimal("0.667")
     assert row["reference_faithfulness"] == Decimal("0.000")
+    assert row["answer_coverage"] == Decimal("0.500")
     assert row["metadata"] == {
         "tokens": {"prompt_tokens": 850, "completion_tokens": 40},
         "errors": {"faithfulness": "TimeoutError"},
@@ -226,7 +228,9 @@ def test_rescoring_clears_previous_errors_and_keeps_tokens(eval_conn, filled_run
 
 @pytest.mark.db
 def test_finish_run_averages_ignoring_null(eval_conn, filled_run):
-    update_scores(eval_conn, filled_run, "single-000001", ScoreResult(context_precision=0.4, answer_relevancy=1.0))
+    update_scores(
+        eval_conn, filled_run, "single-000001", ScoreResult(context_precision=0.4, answer_relevancy=1.0, answer_coverage=0.5)
+    )
     update_scores(eval_conn, filled_run, "single-000002", ScoreResult(context_precision=0.8))
 
     finish_run(eval_conn, filled_run, "SUCCEEDED")
@@ -236,6 +240,7 @@ def test_finish_run_averages_ignoring_null(eval_conn, filled_run):
     assert row["sample_count"] == 2
     assert row["avg_context_precision"] == Decimal("0.600")
     assert row["avg_answer_relevancy"] == Decimal("1.000")
+    assert row["avg_answer_coverage"] == Decimal("0.500")
     assert row["avg_faithfulness"] is None
     assert row["finished_at"] is not None
 
@@ -311,6 +316,16 @@ def test_all_failed_scores_are_pending_again(eval_conn, filled_run, rag_payload)
     pending = find_pending(eval_conn, filled_run)
 
     assert pending.need_scores == ["single-000001"]
+
+
+@pytest.mark.db
+def test_sample_with_only_answer_coverage_is_not_pending(eval_conn, filled_run, rag_payload):
+    update_answer(eval_conn, filled_run, "single-000001", rag_result(rag_payload))
+    update_scores(eval_conn, filled_run, "single-000001", ScoreResult(answer_coverage=0.5))
+
+    pending = find_pending(eval_conn, filled_run)
+
+    assert "single-000001" not in pending.need_scores
 
 
 @pytest.mark.db
