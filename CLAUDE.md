@@ -25,7 +25,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 
 ## 필수 규칙
 
-- 작업 전 `docs/PRD.md`와 작업 영역의 PRD(RAGAS 채점은 `docs/RAGAS_PRD.md`, 검색·라우팅 평가는 `docs/RETRIEVE_PRD.md`), 관련 코드·테스트를 읽고 최소 범위만 수정한다.
+- 작업 전 `docs/PRD.md`와 작업 영역의 PRD(답변 품질 평가는 `docs/RAGAS_PRD.md`, 검색 적중률·라우팅 평가는 `docs/RETRIEVE_PRD.md`), 관련 코드·테스트를 읽고 최소 범위만 수정한다.
 - PRD와 다르게 구현해야 하면 먼저 사용자에게 확인하고, 확정되면 PRD를 함께 갱신한다.
 - 새 `.py`·`.sql` 파일 첫 줄에 한국어 한 줄 역할 주석을 단다.
 - 설정값은 `config.Settings`로만 읽는다.
@@ -35,7 +35,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 - 지표 계산이 실패하면 값은 NULL로 두고 `metadata.errors`에 기록한다. 0점으로 채우지 않는다.
 - RAG 요청·응답 형식은 `docs/PRD.md` "RAG 연동 계약"과 `../YouthLink_RAG/app/schemas/pipeline.py`를 따른다.
 - 평가 테이블 스키마를 바꾸면 `db/ragas_schema.sql`, `docs/Schema.md`, `docs/RAGAS_PRD.md` "DB 추가 테이블"을 같은 커밋에서 갱신한다.
-- 새 작업 항목은 해당 영역 PRD의 "구현 체크리스트"에 적는다. 공통 기반·배포는 `docs/PRD.md`, RAGAS 지표는 `docs/RAGAS_PRD.md`, 검색·라우팅은 `docs/RETRIEVE_PRD.md`.
+- 새 작업 항목은 해당 영역 PRD의 "구현 체크리스트"에 적는다. 공통 기반·배포는 `docs/PRD.md`, 답변 품질은 `docs/RAGAS_PRD.md`, 검색 적중률·라우팅은 `docs/RETRIEVE_PRD.md`.
 - 확정된 `golden_vN.jsonl`은 수정하지 않는다. 바꿀 때는 `golden_vN+1.jsonl`을 만든다.
 - 테스트에서 OpenAI·RAG 호출은 mock으로 대체한다.
 - DB 테스트는 임시 PostgreSQL에서 하고 로컬 개발 DB를 쓰지 않는다.
@@ -66,9 +66,9 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 
 | 문서 | 내용 |
 | --- | --- |
-| `docs/PRD.md` | 공통: 역할 분담, 전체 흐름, 의존 관계, 현재 상태, RAG 연동 계약, 코드 구조, 명령어, 실행 환경, 선행 작업, 공통 구현 체크리스트 |
-| `docs/RAGAS_PRD.md` | RAGAS 답변 품질 채점: 실행 모드(`rag`·`baseline`·`offline`), 데이터셋 생성, 지표 7개(`answer_coverage` 포함), 평가 실행 순서, 보고서, 평가 테이블 DDL |
-| `docs/RETRIEVE_PRD.md` | 코드 기반 검색·라우팅 평가: 단계별 적중(검색 → 후보 → 카드), 보조 순위 지표(Hit@k, MRR), 청킹 방식 비교, intent·핸들러 라우팅 지표, `routing_v1` 데이터셋 |
+| `docs/PRD.md` | 공통: 평가 종류 3가지(답변 품질·검색 적중률·라우팅), 역할 분담, 전체 흐름, 의존 관계, 현재 상태, RAG 연동 계약, 코드 구조, 명령어, 실행 환경, 선행 작업, 공통 구현 체크리스트 |
+| `docs/RAGAS_PRD.md` | 답변 품질 평가 (RAGAS, LLM 채점): 실행 모드(`rag`·`baseline`·`offline`), 데이터셋 생성, 지표 7개(`answer_coverage` 포함), 평가 실행 순서, 보고서, 평가 테이블 DDL |
+| `docs/RETRIEVE_PRD.md` | 검색 적중률 평가·라우팅 평가 (코드 채점): 단계별 적중(검색 → 후보 → 카드), 보조 순위 지표(Hit@k, MRR), 청킹 방식 비교, intent·핸들러 라우팅 지표, `routing_v1` 데이터셋 |
 
 코드 주석의 `PRD "섹션명"`은 위 세 문서 중 그 섹션이 있는 문서를 가리킨다.
 

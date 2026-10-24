@@ -1,6 +1,6 @@
-# RAGAS 평가 PRD
+# 답변 품질 평가 PRD (RAGAS)
 
-RAGAS 채점 기능만 둔다. 역할·흐름·RAG 연동 계약·코드 구조·실행 환경은 `docs/PRD.md`.
+답변 품질 평가(RAGAS 채점) 기능만 둔다. 평가 종류 전체와 역할·흐름·RAG 연동 계약·코드 구조·실행 환경은 `docs/PRD.md`.
 
 ## 개요
 
