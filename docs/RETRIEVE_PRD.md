@@ -93,13 +93,15 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | `question` | 사용자 질문 |
 | `expected_intent` | 기대 유형 목록 (list[str], 하위 질문마다 1개. 대부분 1개) |
 | `reviewed` | 검수 여부 |
+| `note` | 선택. 경계 사례의 판정 근거 (검수용, 채점에 쓰지 않음) |
 
 | 구성 | 건수 |
 | --- | --- |
 | 유형 7종 | 각 10~15건 |
 | 하위 질문이 여러 개인 질문 | 5~10건 |
 
-- 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수
+- 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수. 초안 `datasets/routing_candidates.jsonl` → 검수 → `datasets/routing_v1.jsonl`
+- 유형 판정은 RAG 분석 프롬프트(`analyze_v3.md`)의 유형 정의·"헷갈리는 경우"를 따른다. 대화 없이 보내므로 `policy_detail`·`eligibility`·`comparison` 질문에는 정책 이름을 넣고, 지시어만 있는 질문은 `unclear`
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
 
 ## 결과 저장
