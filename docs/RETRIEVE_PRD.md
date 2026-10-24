@@ -13,6 +13,26 @@
 | 실행 | 기존 `run`에서 함께 계산 | 새 명령 `route` |
 | 비용 | 추가 없음 (RAG 호출은 답변 품질과 공유) | RAG 호출만 |
 
+## 단계별 지표
+
+질문이 RAG를 거치는 순서대로 단계마다 쓰는 지표를 둔다. 답변 품질 지표 상세는 `docs/RAGAS_PRD.md`.
+
+| 단계 | 하는 일 | 지표 | 응답 값 | 평가 |
+| --- | --- | --- | --- | --- |
+| 1. 질문 분석 | 질문 유형 분류, 지목 정책 찾기, 검색어·조건 추출 | `intent_correct`, `target_correct`, `context_kept`, 분석 실패율 | `trace.analysis.sub_queries[]`, 응답 `current_policies`, `fallback_reason` | 라우팅 (`routing_vN`) |
+| 2. 핸들러 선택 | 질문을 맞는 핸들러로 보냄 | `handler_correct` (라우터 구현 후) | `trace.handler` | 라우팅 (`routing_vN`) |
+| 3. 1차 필터 | 조건으로 정책 거르기 | `filter_hit` | `trace.filtered_policy_nos` (요청 중) | 검색 적중률 (`golden_vN`) |
+| 4. 검색 | 청크 검색, 정책 순위 | `retrieval_hit`, `hit_at_k` (k = 1, 3, 5, 10), MRR | `trace.retrieved_chunks` | 검색 적중률 (`golden_vN`) |
+| 5. 후보 | 검색된 정책을 묶고 정렬해서 후보 선택 | `candidate_hit` | `trace.cards.candidate_nos` | 검색 적중률 (`golden_vN`) |
+| 6. 카드 | LLM이 후보 중 보여 줄 카드 선택 | **`card_hit`** (검색 적중률 주 지표) | `policies[].policy_no` | 검색 적중률 (`golden_vN`) |
+| 7. 근거 전달 | 후보 정책 원문을 LLM에 근거로 넘김 | Context Precision, Context Recall | `trace.contexts` | 답변 품질 (`golden_vN`) |
+| 8. 답변 생성 | 근거로 답변 작성 | Faithfulness, Answer Relevancy | `answer`, `trace.contexts` | 답변 품질 (`golden_vN`) |
+| 끝에서 끝까지 | 최종 답변이 정답과 원문에 맞나 | Factual Correctness, Answer Coverage, Reference Faithfulness | `answer` (정답·원문은 데이터셋에서) | 답변 품질 (`golden_vN`), `baseline` 비교 |
+
+- 3~6단계는 같은 정답 정책 번호(`policy_no`)로 판정한다. 정답 정책이 어느 단계까지 남았는지 본다
+- 마지막 행의 세 지표는 검색 결과를 쓰지 않아 RAG 없는 `baseline`과 같은 기준으로 비교할 수 있다
+- 4단계 `hit_at_k`·MRR은 검색기 순위 지표다. 지역·전국 분리 검색 질문은 실제 후보 선택 방식과 순위가 다를 수 있어, 후보 단계 해석은 `candidate_hit`로 한다
+
 ## 검색 적중률 평가
 
 ### 지표
