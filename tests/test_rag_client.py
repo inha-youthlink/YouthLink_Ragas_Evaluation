@@ -260,11 +260,27 @@ def test_response_without_new_trace_keys_has_no_details(rag_payload):
     [
         pytest.param({"cards": {"candidate_nos": "TEST-0001"}}, "trace.cards.candidate_nos", id="candidates-not-list"),
         pytest.param({"handler": 1}, "trace.handler", id="handler-not-str"),
+        pytest.param({"filtered_policy_nos": "TEST-0001"}, "trace.filtered_policy_nos", id="filtered-not-list"),
+        pytest.param({"filtered_policy_nos": [1]}, "trace.filtered_policy_nos.0", id="filtered-item-not-str"),
     ],
 )
 def test_malformed_trace_detail_fails(rag_payload, changes, loc):
     with pytest.raises(ValueError, match=re.escape(loc)):
         call_with(with_trace(rag_payload, **changes))
+
+
+@pytest.mark.parametrize("filtered", [["TEST-0001", "TEST-0002"], [], None], ids=["list", "empty", "null"])
+def test_filtered_policy_nos_is_kept_when_key_is_present(rag_payload, filtered):
+    result, _ = call_with(with_trace(rag_payload, filtered_policy_nos=filtered))
+
+    # null(필터 미적용)과 [](적용했으나 0건)도 키가 있으면 남겨, 예전 RAG(키 없음)와 구분한다
+    assert result.trace_details == {"filtered_policy_nos": filtered}
+
+
+def test_filtered_policy_nos_is_omitted_when_key_is_absent(rag_payload):
+    result, _ = call_with(rag_payload)
+
+    assert "filtered_policy_nos" not in result.trace_details
 
 
 def test_card_without_policy_no_fails(rag_payload):

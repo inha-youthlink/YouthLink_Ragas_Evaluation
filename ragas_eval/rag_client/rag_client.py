@@ -82,6 +82,8 @@ class _Trace(BaseModel):
     analysis: _Analysis | None = None
     handler: str | None = None
     conditions: dict[str, Any] | None = None
+    # 1차 필터 통과 정책 번호: null=필터 미적용, []=적용했으나 0건. 예전 RAG는 키 자체가 없다
+    filtered_policy_nos: list[str] | None = None
 
 
 class _PipelineResponse(BaseModel):
@@ -123,6 +125,9 @@ def _to_result(payload: Any) -> RagResult:
             key: v for src, key in ANALYSIS_TOKEN_KEYS.items() if (v := getattr(trace.analysis.tokens, src)) is not None
         }
     details = {key: payload["trace"][key] for key in TRACE_DETAIL_KEYS if payload["trace"].get(key) is not None}
+    # null도 "필터 미적용"이라는 정보이므로, 키가 있으면 그대로 남긴다 (없으면 filter_hit 계산 불가)
+    if "filtered_policy_nos" in payload["trace"]:
+        details["filtered_policy_nos"] = payload["trace"]["filtered_policy_nos"]
     # 예전 RAG는 policies가 카드가 아니라 후보 전체였으므로, cards가 있는 응답에서만 카드로 본다
     if "cards" in details:
         details["card_policy_nos"] = [p.policy_no for p in parsed.policies]
