@@ -13,7 +13,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
   - `config.py`: 환경변수 (최상위)
   - `policy_source/`: `policy` → `Document`
   - `generate/`: `TestsetGenerator` → 후보 jsonl
-  - `dataset/`: golden jsonl 로드·검사
+  - `dataset/`: golden·routing jsonl 로드·검사
   - `rag_client/`: RAG 호출
   - `baseline_client/`: RAG 없이 LLM 직접 호출 (`--baseline`)
   - `scorer/`: 채점

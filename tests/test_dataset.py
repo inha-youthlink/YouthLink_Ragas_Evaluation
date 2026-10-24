@@ -10,9 +10,11 @@ from pydantic import ValidationError
 from ragas_eval.dataset import dataset
 from ragas_eval.dataset.dataset import (
     GoldenSample,
+    RoutingSample,
     fetch_source_updated_at,
     load_evaluation_samples,
     load_golden,
+    load_routing,
     reviewed_only,
     split_by_freshness,
 )
@@ -209,3 +211,87 @@ def test_fetch_source_updated_at_reads_requested_policies(test_database_url):
         current = fetch_source_updated_at(conn, ["TEST-0001", "TEST-0002", "TEST-MISSING"])
 
     assert current == {"TEST-0001": UPDATED_AT, "TEST-0002": None}
+
+
+# ---- 라우팅 데이터셋 ----
+
+
+def routing_record(**overrides):
+    record = {
+        "sample_id": "route-000001",
+        "question": "테스트 정책 신청 방법 알려줘",
+        "expected_intent": ["policy_detail"],
+        "reviewed": True,
+    }
+    return {**record, **overrides}
+
+
+def test_routing_record_parses_with_optional_note():
+    sample = RoutingSample.model_validate(routing_record(note="기준 자체를 물음"))
+
+    assert sample.expected_intent == ["policy_detail"]
+    assert sample.note == "기준 자체를 물음"
+    assert RoutingSample.model_validate(routing_record()).note is None
+
+
+def test_routing_record_keeps_sub_query_intents_in_order():
+    sample = RoutingSample.model_validate(routing_record(expected_intent=["policy_detail", "policy_list"]))
+
+    assert sample.expected_intent == ["policy_detail", "policy_list"]
+
+
+@pytest.mark.parametrize(
+    "intents",
+    [[], ["unknown_intent"], ["policy_list"] * 4],
+    ids=["empty", "unknown", "more-than-max-sub-queries"],
+)
+def test_invalid_expected_intent_fails(intents):
+    with pytest.raises(ValidationError):
+        RoutingSample.model_validate(routing_record(expected_intent=intents))
+
+
+@pytest.mark.parametrize("field", ["sample_id", "question", "expected_intent"])
+def test_missing_routing_field_fails(field):
+    record = {k: v for k, v in routing_record().items() if k != field}
+
+    with pytest.raises(ValidationError):
+        RoutingSample.model_validate(record)
+
+
+def test_empty_routing_question_fails():
+    with pytest.raises(ValidationError):
+        RoutingSample.model_validate(routing_record(question=""))
+
+
+def test_load_routing_reads_samples_and_rejects_duplicates(tmp_path):
+    path = write_jsonl(tmp_path / "routing.jsonl", [routing_record(), routing_record(sample_id="route-000002")])
+    duplicate = write_jsonl(tmp_path / "dup.jsonl", [routing_record(), routing_record()])
+
+    samples = load_routing(path)
+
+    assert [s.sample_id for s in samples] == ["route-000001", "route-000002"]
+    with pytest.raises(ValueError, match="2번째 줄 sample_id 중복"):
+        load_routing(duplicate)
+
+
+def test_load_routing_invalid_line_fails_with_line_number(tmp_path):
+    path = write_jsonl(tmp_path / "routing.jsonl", [routing_record(), routing_record(expected_intent=["nope"])])
+
+    with pytest.raises(ValueError, match="2번째 줄 검증 실패"):
+        load_routing(path)
+
+
+def test_reviewed_only_drops_unreviewed_routing_samples():
+    samples = [
+        RoutingSample.model_validate(routing_record()),
+        RoutingSample.model_validate(routing_record(sample_id="route-000002", reviewed=False)),
+    ]
+
+    assert [s.sample_id for s in reviewed_only(samples)] == ["route-000001"]
+
+
+def test_confirmed_routing_v1_file_is_valid():
+    samples = load_routing("datasets/routing_v1.jsonl")
+
+    assert len(samples) == 90
+    assert all(s.reviewed for s in samples)

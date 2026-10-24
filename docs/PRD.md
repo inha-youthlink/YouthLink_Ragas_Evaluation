@@ -88,7 +88,7 @@
 | `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
 | `ragas_eval/policy_source/policy_source.py` | `policy` → `Document` |
 | `ragas_eval/generate/generate.py` | `TestsetGenerator` → `policy_no` 복원 → `golden_candidates.jsonl` |
-| `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample` 타입 |
+| `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample`·`RoutingSample` 타입 |
 | `ragas_eval/rag_client/rag_client.py` | RAG 호출, `RagResult` 타입 |
 | `ragas_eval/baseline_client/baseline_client.py` | LLM 직접 호출 → `RagResult` (`retrieved_contexts = []`) |
 | `ragas_eval/scorer/scorer.py` | 모드별 지표 `ascore`, `ScoreResult` 타입 |

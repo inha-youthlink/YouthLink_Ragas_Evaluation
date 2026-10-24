@@ -1,14 +1,19 @@
-# golden jsonl 로드, reviewed 필터, source_updated_at 변경 검사
+# golden·routing jsonl 로드, reviewed 필터, source_updated_at 변경 검사
 import logging
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeVar
 
 import psycopg
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+# RAG 질문 분석 유형 7종 (YouthLink_RAG app/schemas/analysis.py Intent)
+Intent = Literal["policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear"]
+# RAG가 질문 하나를 나누는 하위 질문 최대 개수 (YouthLink_RAG analyzer.MAX_SUB_QUERIES)
+MAX_SUB_QUERIES = 3
 
 SELECT_SOURCE_UPDATED_AT = """
     SELECT policy_no, source_updated_at
@@ -33,15 +38,39 @@ class GoldenSample(BaseModel):
     reviewed: bool = False
 
 
+class RoutingSample(BaseModel):
+    """routing jsonl 한 줄. expected_intent는 하위 질문마다 1개 (PRD "라우팅 평가" 데이터셋)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    sample_id: str = Field(min_length=1, max_length=50)
+    question: str = Field(min_length=1)
+    expected_intent: list[Intent] = Field(min_length=1, max_length=MAX_SUB_QUERIES)
+    reviewed: bool = False
+    # 검수용 판정 근거. 채점에 쓰지 않는다
+    note: str | None = None
+
+
+Sample = TypeVar("Sample", GoldenSample, RoutingSample)
+
+
 def load_golden(path: str | Path) -> list[GoldenSample]:
-    samples: list[GoldenSample] = []
+    return _load_jsonl(path, GoldenSample)
+
+
+def load_routing(path: str | Path) -> list[RoutingSample]:
+    return _load_jsonl(path, RoutingSample)
+
+
+def _load_jsonl(path: str | Path, model: type[Sample]) -> list[Sample]:
+    samples: list[Sample] = []
     seen: set[str] = set()
     # utf-8-sig: 편집기가 붙인 BOM 허용, split("\n"): 본문 속 U+2028 등에서 레코드가 쪼개지지 않게
     for line_no, line in enumerate(Path(path).read_text(encoding="utf-8-sig").split("\n"), start=1):
         if not line.strip():
             continue
         try:
-            sample = GoldenSample.model_validate_json(line)
+            sample = model.model_validate_json(line)
         except ValidationError as e:
             # 원문(input_value)이 traceback에 남지 않도록 위치·종류만 남기고 체인을 끊는다
             details = ", ".join(
@@ -55,7 +84,7 @@ def load_golden(path: str | Path) -> list[GoldenSample]:
     return samples
 
 
-def reviewed_only(samples: Iterable[GoldenSample]) -> list[GoldenSample]:
+def reviewed_only(samples: Iterable[Sample]) -> list[Sample]:
     return [s for s in samples if s.reviewed]
 
 

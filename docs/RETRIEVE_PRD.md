@@ -128,7 +128,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 - [x] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `filter_hit`, `hit_at_k`, 샘플별 `rank`·`reciprocal_rank`. MRR은 run 평균이라 R-4) + 테스트
 - [x] R-3. `run`에서 R-2를 계산해 `metadata.retrieval`에 저장 + 테스트
 - [x] R-4. 보고서에 검색 적중률 표 (단계별 평균·계산 대상 수, MRR, 빠진 단계별 샘플 수. 검색 없는 run은 생략) + 테스트
-- [ ] R-6. `routing_vN` 데이터셋 로드·검사 + 테스트
+- [x] R-6. `routing_vN` 데이터셋 로드·검사 (`RoutingSample`, `load_routing`. 유형 7종, 하위 질문 1~3개) + 테스트
 - [ ] R-7. `route` 명령 (호출 → 라우팅 지표 채점 → 저장) + 테스트
 - [ ] R-8. 보고서에 라우팅 표 (정확도, 혼동 행렬) + 테스트
 - [x] R-9. `routing_v1.jsonl` 초안 → 사용자 검수 → 확정 (90건)
