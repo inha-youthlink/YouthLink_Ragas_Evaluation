@@ -28,6 +28,8 @@ RETRIEVAL_ROWS = (
     ("후보", "candidate_hit", "candidate_hit"),
     ("카드", "card_hit", "card_hit"),
 )
+# 라우팅 보고서의 유형 표시 순서 (PRD "라우팅 평가")
+ROUTING_INTENTS = ("policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear")
 DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가")
 
 SELECT_RUN = "SELECT * FROM ragas_evaluation_run WHERE run_id = %(run_id)s"
@@ -51,7 +53,8 @@ SELECT_MODE_AVERAGES = sql.SQL(
 SELECT_SAMPLES = sql.SQL(
     """
     SELECT sample_id, policy_no, question, answer, {metrics}, latency_ms, metadata->'errors' AS errors,
-           metadata->'retrieval' AS retrieval
+           metadata->'retrieval' AS retrieval,
+           metadata->'routing' AS routing
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s
     ORDER BY sample_id
@@ -105,6 +108,8 @@ def report_path(run: Mapping[str, Any], out_dir: Path) -> Path:
 
 def render(data: ReportData) -> str:
     run = data.run
+    if run["mode"] == "routing":
+        return _render_routing(data)
     sections = [
         f"# RAGAS 평가 결과: {run['dataset_version']} / {run['mode']} / 반복 {run['repeat_no']}",
         _summary(run, data.samples),
@@ -114,6 +119,20 @@ def render(data: ReportData) -> str:
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
         _low_samples(data.samples),
+    ]
+    return "\n\n".join(section for section in sections if section) + "\n"
+
+
+def _render_routing(data: ReportData) -> str:
+    """PRD "라우팅 평가": 채점 LLM이 없어 RAGAS 지표 구간 대신 유형 정확도·혼동 행렬·틀린 샘플을 보인다."""
+    run = data.run
+    sections = [
+        f"# 라우팅 평가 결과: {run['dataset_version']} / {run['mode']} / 반복 {run['repeat_no']}",
+        _summary(run, data.samples),
+        _routing_conditions(run),
+        _routing_accuracy(run),
+        _routing_progress(data.samples),
+        _routing_wrong_samples(data.samples),
     ]
     return "\n\n".join(section for section in sections if section) + "\n"
 
@@ -138,6 +157,77 @@ def _conditions(run: Mapping[str, Any]) -> str:
         ["채점 프롬프트", (run["metadata"] or {}).get("scoring_prompt")],
     ]
     return "## 실행 조건\n\n" + _table(["항목", "값"], [[k, _text(v)] for k, v in rows])
+
+
+def _routing_conditions(run: Mapping[str, Any]) -> str:
+    rows = [
+        ["답변 모델", run["rag_chat_model"]],
+        ["검색 방식", run["rag_retriever"]],
+        ["top_k", run["rag_top_k"]],
+        ["프롬프트 버전", (run["metadata"] or {}).get("prompt_version")],
+    ]
+    return "## 실행 조건\n\n" + _table(["항목", "값"], [[k, _text(v)] for k, v in rows])
+
+
+def _routing_accuracy(run: Mapping[str, Any]) -> str:
+    summary = (run["metadata"] or {}).get("routing")
+    if not summary:
+        return "## 라우팅 정확도\n\n집계 전"
+    rows = [
+        ["정확도", _score(summary.get("accuracy"))],
+        ["분석 실패율", _score(summary.get("fallback_rate"))],
+        ["채점된 샘플 수", summary.get("sample_count", "-")],
+        ["분석 프롬프트 버전", _text(", ".join(summary.get("analysis_prompt_versions") or []))],
+    ]
+    by_intent = summary.get("by_intent") or {}
+    confusion = summary.get("confusion") or {}
+    # 정해진 7개 밖의 유형이 나와도 표에서 빠지지 않게 뒤에 붙인다
+    seen = {*by_intent, *confusion, *(p for row in confusion.values() for p in row)}
+    intents = [*ROUTING_INTENTS, *sorted(seen - set(ROUTING_INTENTS))]
+    accuracy_rows = []
+    for intent in intents:
+        counts = by_intent.get(intent, {"total": 0, "correct": 0})
+        rate = _score(counts["correct"] / counts["total"]) if counts["total"] else "-"
+        accuracy_rows.append([intent, counts["total"], counts["correct"], rate])
+    matrix_rows = [[e, *(confusion.get(e, {}).get(p, 0) for p in intents)] for e in intents]
+    return "\n\n".join(
+        [
+            "## 라우팅 정확도",
+            _table(["항목", "값"], rows),
+            "### 유형별 정확도 (하위 질문 1개인 샘플만)",
+            _table(["유형", "샘플 수", "정답 수", "정확도"], accuracy_rows),
+            "### 혼동 행렬 (행: 기대 유형, 열: 응답 유형, 하위 질문 1개인 샘플만)",
+            _table(["기대 \\ 예측", *intents], matrix_rows),
+        ]
+    )
+
+
+def _routing_progress(samples: Sequence[Mapping[str, Any]]) -> str:
+    answered = [s for s in samples if s["answer"] is not None]
+    unscorable = [s for s in answered if (s.get("routing") or {}).get("intent_correct") is None]
+    latencies = [s["latency_ms"] for s in samples if s["latency_ms"] is not None]
+    rows = [
+        ["미응답", len(samples) - len(answered)],
+        ["채점 불가(analysis 없음)", len(unscorable)],
+        ["평균 응답 시간(ms)", round(sum(latencies) / len(latencies)) if latencies else "-"],
+    ]
+    return "## 응답 현황\n\n" + _table(["항목", "값"], rows)
+
+
+def _routing_wrong_samples(samples: Sequence[Mapping[str, Any]]) -> str:
+    wrong = [(s, s["routing"]) for s in samples if (s.get("routing") or {}).get("intent_correct") == 0]
+    rows = [
+        [
+            s["sample_id"],
+            _text(s["question"], QUESTION_MAX_CHARS),
+            _text(", ".join(r.get("expected_intent") or [])),
+            _text(", ".join(r.get("predicted_intent") or [])),
+            _text(r.get("fallback_reason")),
+        ]
+        for s, r in wrong
+    ]
+    headers = ["sample_id", "질문", "기대 유형", "응답 유형", "fallback_reason"]
+    return f"## 틀린 샘플 ({len(wrong)}건)\n\n" + (_table(headers, rows) if rows else "틀린 샘플 없음")
 
 
 def _averages(run: Mapping[str, Any]) -> str:

@@ -13,7 +13,13 @@ def analysis(*intents, fallback=None, prompt="analyze_test"):
 def test_matching_single_intent_is_correct():
     result = score_routing([L], analysis(L))
 
-    assert result == {"predicted_intent": [L], "intent_correct": 1, "fallback_reason": None, "prompt_version": "analyze_test"}
+    assert result == {
+        "expected_intent": [L],
+        "predicted_intent": [L],
+        "intent_correct": 1,
+        "fallback_reason": None,
+        "prompt_version": "analyze_test",
+    }
 
 
 def test_different_intent_is_wrong():
@@ -38,6 +44,7 @@ def test_response_without_analysis_cannot_be_scored():
     result = score_routing([L], None)
 
     assert (result["predicted_intent"], result["intent_correct"], result["prompt_version"]) == (None, None, None)
+    assert result["expected_intent"] == [L]
 
 
 def test_summary_reports_accuracy_and_fallback_rate_over_scored_samples():

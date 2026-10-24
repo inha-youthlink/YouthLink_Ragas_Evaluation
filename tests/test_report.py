@@ -232,6 +232,122 @@ def test_render_without_retrieval_metrics_has_no_retrieval_section():
     assert "## 검색 적중률" not in text
 
 
+def routing_run(**overrides):
+    summary = {
+        "sample_count": 4,
+        "accuracy": 0.5,
+        "fallback_rate": 0.25,
+        "by_intent": {"policy_list": {"total": 2, "correct": 1}, "chitchat": {"total": 1, "correct": 1}},
+        "confusion": {"policy_list": {"policy_list": 1, "policy_detail": 1}, "chitchat": {"chitchat": 1}},
+        "analysis_prompt_versions": ["analyze_v3", "analyze_v4"],
+    }
+    metadata = {"prompt_version": "rag-v1", "routing": summary}
+    return run_row(**{"mode": "routing", "metadata": metadata, **overrides})
+
+
+def routing_sample(sample_id, expected, predicted, correct, fallback=None, **overrides):
+    routing = {
+        "expected_intent": expected,
+        "predicted_intent": predicted,
+        "intent_correct": correct,
+        "fallback_reason": fallback,
+        "prompt_version": "analyze_v3",
+    }
+    return sample_row(sample_id, None, **{"policy_no": None, "routing": routing, **overrides})
+
+
+def routing_report_data(**overrides):
+    samples = [
+        routing_sample("route-000001", ["policy_list"], ["policy_list"], 1),
+        routing_sample("route-000002", ["policy_list"], ["policy_detail"], 0, question="주택 | 정책\n알려줘"),
+        routing_sample("route-000003", ["comparison", "eligibility"], [], 0, fallback="llm_error"),
+        routing_sample("route-000004", ["chitchat"], None, None),
+    ]
+    return report_data(**{"run": routing_run(), "samples": samples, **overrides})
+
+
+def test_render_routing_uses_routing_title_and_skips_ragas_sections():
+    text = render(routing_report_data())
+
+    assert text.startswith("# 라우팅 평가 결과: golden_v1 / routing / 반복 2")
+    for ragas_only in ("## 지표 평균", "## 모드별 비교", "## 점수 낮은 샘플", "## 검색 적중률", "채점 모델"):
+        assert ragas_only not in text
+    assert "| 프롬프트 버전 | rag-v1 |" in text
+
+
+def test_render_routing_accuracy_section_reads_run_summary():
+    text = render(routing_report_data())
+
+    section = text.split("## 라우팅 정확도")[1].split("\n### ")[0]
+    assert "| 정확도 | 0.500 |" in section
+    assert "| 분석 실패율 | 0.250 |" in section
+    assert "| 채점된 샘플 수 | 4 |" in section
+    assert "| 분석 프롬프트 버전 | analyze_v3, analyze_v4 |" in section
+
+
+def test_render_routing_before_aggregation_shows_pending_without_breakdowns():
+    run = routing_run(status="RUNNING", finished_at=None, sample_count=None, metadata={"prompt_version": "rag-v1"})
+
+    text = render(routing_report_data(run=run))
+
+    section = text.split("## 라우팅 정확도")[1].split("\n## ")[0]
+    assert "집계 전" in section
+    assert "### 유형별 정확도" not in text and "### 혼동 행렬" not in text
+
+
+def test_render_routing_accuracy_by_intent_in_fixed_order_with_empty_intents():
+    text = render(routing_report_data())
+
+    section = text.split("### 유형별 정확도")[1].split("\n### ")[0]
+    assert "| policy_list | 2 | 1 | 0.500 |" in section
+    assert "| chitchat | 1 | 1 | 1.000 |" in section
+    assert "| policy_detail | 0 | 0 | - |" in section
+    order = ["policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear"]
+    positions = [section.index(f"| {intent} |") for intent in order]
+    assert positions == sorted(positions)
+
+
+def test_render_routing_confusion_matrix_rows_expected_columns_predicted():
+    text = render(routing_report_data())
+
+    heading, section = text.split("### 혼동 행렬")[1].split("\n\n", 1)
+    assert "하위 질문 1개" in heading
+    header = section.splitlines()[0]
+    assert header.startswith("| 기대 \\ 예측 | policy_list | policy_detail |") and header.endswith("| unclear |")
+    assert "| policy_list | 1 | 1 | 0 | 0 | 0 | 0 | 0 |" in section
+    assert "| chitchat | 0 | 0 | 0 | 0 | 1 | 0 | 0 |" in section
+
+
+def test_render_routing_lists_only_wrong_samples_with_intents_and_fallback():
+    text = render(routing_report_data())
+
+    wrong = text.split("## 틀린 샘플")[1]
+    assert "route-000001" not in wrong and "route-000004" not in wrong
+    assert "| route-000002 | 주택 \\| 정책 알려줘 | policy_list | policy_detail | - |" in wrong
+    assert "| route-000003 | route-000003 질문 | comparison, eligibility | - | llm_error |" in wrong
+
+
+def test_render_routing_without_wrong_samples_says_none():
+    samples = [routing_sample("route-000001", ["policy_list"], ["policy_list"], 1)]
+
+    text = render(routing_report_data(samples=samples))
+
+    assert "틀린 샘플 없음" in text.split("## 틀린 샘플")[1]
+
+
+def test_render_routing_progress_counts_unanswered_and_unscorable_samples():
+    samples = [
+        routing_sample("route-000001", ["policy_list"], ["policy_list"], 1),
+        routing_sample("route-000002", ["chitchat"], None, None),
+        routing_sample("route-000003", ["chitchat"], None, None, answer=None),
+    ]
+
+    text = render(routing_report_data(samples=samples))
+
+    assert "| 미응답 | 1 |" in text
+    assert "| 채점 불가(analysis 없음) | 1 |" in text
+
+
 def test_report_path_names_file_by_run_conditions(tmp_path):
     path = report_path(run_row(), tmp_path)
 
@@ -292,6 +408,24 @@ def test_load_report_data_reads_retrieval_metrics(eval_conn, golden_record):
     data = load_report_data(eval_conn, run_id)
 
     assert data.samples[0]["retrieval"] == metrics
+
+
+@pytest.mark.db
+def test_load_report_data_reads_routing_metrics(eval_conn, golden_record):
+    version = f"golden_v{uuid4().int % 10**9}"
+    run_id = insert_run(
+        eval_conn, dataset_version=version, repeat_no=1, mode="routing", judge_model="test-judge", embedding_model="test-emb"
+    )
+    sample = GoldenSample.model_validate(golden_record)
+    insert_samples(eval_conn, run_id, [sample])
+    eval_conn.execute(
+        "UPDATE ragas_evaluation_samples SET metadata = jsonb_build_object('routing', %s::jsonb) WHERE run_id = %s",
+        ['{"intent_correct": 0, "expected_intent": ["chitchat"]}', run_id],
+    )
+
+    data = load_report_data(eval_conn, run_id)
+
+    assert data.samples[0]["routing"] == {"intent_correct": 0, "expected_intent": ["chitchat"]}
 
 
 @pytest.mark.db

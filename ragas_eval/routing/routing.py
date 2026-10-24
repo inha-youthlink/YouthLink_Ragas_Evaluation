@@ -10,9 +10,16 @@ def score_routing(expected_intent: Sequence[str], analysis: Mapping[str, Any] | 
     분석 실패(fallback_reason)는 유형이 비어 0점, 응답에 analysis가 없으면 판단할 수 없어 None이다.
     """
     if analysis is None:
-        return {"predicted_intent": None, "intent_correct": None, "fallback_reason": None, "prompt_version": None}
+        return {
+            "expected_intent": list(expected_intent),
+            "predicted_intent": None,
+            "intent_correct": None,
+            "fallback_reason": None,
+            "prompt_version": None,
+        }
     predicted = [sub["intent"] for sub in analysis.get("sub_queries") or []]
     return {
+        "expected_intent": list(expected_intent),
         "predicted_intent": predicted,
         # 하위 질문 순서는 LLM 출력마다 달라질 수 있어 개수까지 포함한 묶음으로 비교한다
         "intent_correct": int(Counter(predicted) == Counter(expected_intent)),

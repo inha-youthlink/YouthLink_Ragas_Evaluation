@@ -109,7 +109,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 
 - 계산한 지표는 `ragas_evaluation_samples.metadata`에 저장한다 (스키마 변경 없음)
 - 검색 적중률: `rag` run에서 응답 저장과 같은 UPDATE로 `metadata.retrieval` = `{card_hit, candidate_hit, retrieval_hit, filter_hit, rank, hit_at_1, hit_at_3, hit_at_5, hit_at_10, reciprocal_rank}`. `baseline`·`offline`은 키를 만들지 않는다
-- 라우팅: `route` run은 `mode = 'routing'`, `judge_model`·`embedding_model` = `'none'`, RAG 설정은 `rag`와 같이 기록. 샘플 `answer` = RAG 답변, `metadata.routing` = `{predicted_intent, intent_correct, fallback_reason, prompt_version}`. 모두 응답하면 `run.metadata.routing` = `{sample_count, accuracy, fallback_rate, by_intent, confusion, analysis_prompt_versions}`로 집계하고 SUCCEEDED
+- 라우팅: `route` run은 `mode = 'routing'`, `judge_model`·`embedding_model` = `'none'`, RAG 설정은 `rag`와 같이 기록. 샘플 `answer` = RAG 답변, `metadata.routing` = `{expected_intent, predicted_intent, intent_correct, fallback_reason, prompt_version}`. 모두 응답하면 `run.metadata.routing` = `{sample_count, accuracy, fallback_rate, by_intent, confusion, analysis_prompt_versions}`로 집계하고 SUCCEEDED
 - 라우팅 채점: 분석 실패(`fallback_reason`)는 유형이 비어 `intent_correct` = 0, 응답에 `analysis`가 없으면 NULL. 미응답이 남으면 RUNNING으로 두고 새 `route`로 다시 실행한다 (재개 없음)
 
 ## RAG 담당 확인 사항
@@ -125,12 +125,12 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 ## 구현 체크리스트
 
 - [x] R-1. `rag_client`가 후보(`trace.cards`), 카드 정책 번호, 질문 분석, 핸들러, 필터 조건, 분석 토큰을 `metadata`에 저장 + 테스트
-- [ ] R-1a. `rag_client`가 `trace.filtered_policy_nos`를 `metadata`에 저장 (키 없으면 생략) + 테스트
+- [x] R-1a. `rag_client`가 `trace.filtered_policy_nos`를 `metadata`에 저장 (키가 있으면 null도 저장, 키 없으면 생략) + 테스트
 - [x] R-2. 검색 적중률 계산 (`card_hit`, `candidate_hit`, `retrieval_hit`, `filter_hit`, `hit_at_k`, 샘플별 `rank`·`reciprocal_rank`. MRR은 run 평균이라 R-4) + 테스트
 - [x] R-3. `run`에서 R-2를 계산해 `metadata.retrieval`에 저장 + 테스트
 - [x] R-4. 보고서에 검색 적중률 표 (단계별 평균·계산 대상 수, MRR, 빠진 단계별 샘플 수. 검색 없는 run은 생략) + 테스트
 - [x] R-6. `routing_vN` 데이터셋 로드·검사 (`RoutingSample`, `load_routing`. 유형 7종, 하위 질문 1~3개) + 테스트
 - [x] R-7. `route` 명령 (호출 → 라우팅 지표 채점 → 저장) + 테스트
-- [ ] R-8. 보고서에 라우팅 표 (정확도, 혼동 행렬) + 테스트
+- [x] R-8. 보고서에 라우팅 표 (`routing` run 전용: 정확도·분석 실패율, 유형별 정확도, 혼동 행렬, 틀린 샘플(기대·응답 유형). RAGAS 구간은 생략) + 테스트
 - [x] R-9. `routing_v1.jsonl` 초안 → 사용자 검수 → 확정 (90건)
 - [ ] R-10. RAG 담당 확인 사항 회신 반영
