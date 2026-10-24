@@ -106,6 +106,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | 하위 질문이 여러 개인 질문 | 5~10건 |
 
 - 작성: Claude가 초안을 쓰고(LLM API 호출 없음) 사용자가 검수
+- 앞 턴 정책: `datasets/routing_policies.jsonl` (golden_v1 정책 25건, `policy_no`·`policy_name`·`field`·`similar_group`). 이름이 비슷한 묶음(`similar_group`)은 `unclear` 판정용
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
 - 이어지는 질문은 앞 턴을 고정값으로 넣고 한 번만 호출한다
 
