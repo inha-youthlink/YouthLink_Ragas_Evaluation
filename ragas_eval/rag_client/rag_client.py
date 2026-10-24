@@ -12,6 +12,10 @@ RAG_TIMEOUT_SECONDS = 120.0
 CONNECT_TIMEOUT_SECONDS = 5.0
 # RAG trace.tokens 키 → samples.metadata.tokens 키
 TOKEN_KEYS = {"prompt": "prompt_tokens", "completion": "completion_tokens"}
+# 질문 분석 토큰(trace.analysis.tokens)은 생성 토큰과 따로 기록된다
+ANALYSIS_TOKEN_KEYS = {"prompt": "analysis_prompt_tokens", "completion": "analysis_completion_tokens"}
+# 검색 적중률·라우팅 평가용으로 samples.metadata에 원본 그대로 남기는 trace 키 (없으면 저장하지 않음)
+TRACE_DETAIL_KEYS = ("cards", "analysis", "handler", "conditions")
 
 
 class RagResult(BaseModel):
@@ -19,6 +23,7 @@ class RagResult(BaseModel):
 
     chunks는 samples.contexts에 저장하는 채점 근거([{"content": ...}])이고,
     retrieved_chunks는 trace.retrieved_chunks 원본으로 samples.metadata에 남긴다.
+    trace_details는 후보(cards)·카드 정책 번호(card_policy_nos)·질문 분석·핸들러·필터 조건으로 samples.metadata에 남긴다.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -32,6 +37,7 @@ class RagResult(BaseModel):
     chat_model: str | None = None
     retriever: str | None = None
     top_k: int | None = Field(default=None, ge=1)
+    trace_details: dict[str, Any] = Field(default_factory=dict)
 
 
 class _RetrievedChunk(BaseModel):
@@ -49,6 +55,18 @@ class _Tokens(BaseModel):
     completion: int | None
 
 
+class _Cards(BaseModel):
+    candidate_nos: list[str]
+
+
+class _Analysis(BaseModel):
+    tokens: _Tokens | None = None
+
+
+class _Policy(BaseModel):
+    policy_no: str
+
+
 class _Trace(BaseModel):
     """PRD "RAG 연동 계약"의 trace 필수 키. 키는 반드시 있어야 하고 값은 null을 허용한다."""
 
@@ -59,10 +77,16 @@ class _Trace(BaseModel):
     chat_model: str | None
     retriever: str | None
     top_k: int | None = Field(ge=1)
+    # 아래는 검색 적중률·라우팅 평가용 선택 키. 있으면 형식만 확인한다
+    cards: _Cards | None = None
+    analysis: _Analysis | None = None
+    handler: str | None = None
+    conditions: dict[str, Any] | None = None
 
 
 class _PipelineResponse(BaseModel):
     answer: str
+    policies: list[_Policy] = Field(default_factory=list)
     trace: _Trace
 
 
@@ -93,6 +117,15 @@ async def call_pipeline(
 def _to_result(payload: Any) -> RagResult:
     parsed = _PipelineResponse.model_validate(payload)
     trace = parsed.trace
+    tokens = {key: v for src, key in TOKEN_KEYS.items() if (v := getattr(trace.tokens, src)) is not None}
+    if trace.analysis and trace.analysis.tokens:
+        tokens |= {
+            key: v for src, key in ANALYSIS_TOKEN_KEYS.items() if (v := getattr(trace.analysis.tokens, src)) is not None
+        }
+    details = {key: payload["trace"][key] for key in TRACE_DETAIL_KEYS if payload["trace"].get(key) is not None}
+    # 예전 RAG는 policies가 카드가 아니라 후보 전체였으므로, cards가 있는 응답에서만 카드로 본다
+    if "cards" in details:
+        details["card_policy_nos"] = [p.policy_no for p in parsed.policies]
     # contexts는 RAG가 LLM에 넘긴 근거 순서(검색 순위) 그대로 쓴다
     return RagResult(
         answer=parsed.answer,
@@ -100,8 +133,9 @@ def _to_result(payload: Any) -> RagResult:
         chunks=[{"content": c} for c in trace.contexts],
         retrieved_chunks=payload["trace"]["retrieved_chunks"],
         latency_ms=trace.latency_ms.total,
-        tokens={key: v for src, key in TOKEN_KEYS.items() if (v := getattr(trace.tokens, src)) is not None},
+        tokens=tokens,
         chat_model=trace.chat_model,
         retriever=trace.retriever,
         top_k=trace.top_k,
+        trace_details=details,
     )

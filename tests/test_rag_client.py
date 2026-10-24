@@ -217,3 +217,56 @@ def test_invalid_context_fails_without_leaking_values(rag_payload):
 def test_out_of_range_trace_value_fails(rag_payload, changes, loc):
     with pytest.raises(ValueError, match=re.escape(loc)):
         call_with(with_trace(rag_payload, **changes))
+
+
+def test_trace_details_keep_candidates_cards_analysis_handler_conditions(rag_payload):
+    cards = {"candidate_nos": ["TEST-0001", "TEST-0002"], "selected": [1], "fallback": False}
+    analysis = {"sub_queries": [{"intent": "policy_detail"}], "tokens": {"prompt": 700, "completion": 90}}
+    conditions = {"lines": ["지역: 서울"], "filtered_policy_count": 120, "split_search": True}
+    payload = with_trace(rag_payload, cards=cards, analysis=analysis, handler="default_rag", conditions=conditions)
+    payload["policies"] = [{"policy_no": "TEST-0001", "policy_name": "테스트 정책", "score": 0.9}]
+
+    result, _ = call_with(payload)
+
+    assert result.trace_details == {
+        "cards": cards,
+        "card_policy_nos": ["TEST-0001"],
+        "analysis": analysis,
+        "handler": "default_rag",
+        "conditions": conditions,
+    }
+
+
+def test_analysis_tokens_are_recorded_apart_from_generation_tokens(rag_payload):
+    payload = with_trace(rag_payload, analysis={"tokens": {"prompt": 700, "completion": None}})
+
+    result, _ = call_with(payload)
+
+    assert result.tokens == {"prompt_tokens": 850, "completion_tokens": 40, "analysis_prompt_tokens": 700}
+
+
+def test_response_without_new_trace_keys_has_no_details(rag_payload):
+    payload = {**rag_payload, "policies": [{"policy_no": "TEST-0001"}]}
+
+    result, _ = call_with(payload)
+
+    # cards가 없는 예전 응답의 policies는 카드가 아니므로 남기지 않는다
+    assert result.trace_details == {}
+    assert result.tokens == {"prompt_tokens": 850, "completion_tokens": 40}
+
+
+@pytest.mark.parametrize(
+    ("changes", "loc"),
+    [
+        pytest.param({"cards": {"candidate_nos": "TEST-0001"}}, "trace.cards.candidate_nos", id="candidates-not-list"),
+        pytest.param({"handler": 1}, "trace.handler", id="handler-not-str"),
+    ],
+)
+def test_malformed_trace_detail_fails(rag_payload, changes, loc):
+    with pytest.raises(ValueError, match=re.escape(loc)):
+        call_with(with_trace(rag_payload, **changes))
+
+
+def test_card_without_policy_no_fails(rag_payload):
+    with pytest.raises(ValueError, match=re.escape("policies.0.policy_no")):
+        call_with({**rag_payload, "policies": [{"policy_name": "번호 없음"}]})

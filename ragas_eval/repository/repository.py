@@ -220,6 +220,7 @@ def update_answer(conn: psycopg.Connection, run_id: UUID, sample_id: str, result
         patch["tokens"] = result.tokens
     if result.retrieved_chunks:
         patch["retrieved_chunks"] = result.retrieved_chunks
+    patch |= result.trace_details
     params = {
         "run_id": run_id,
         "sample_id": sample_id,

@@ -160,6 +160,18 @@ def test_update_answer_stores_rag_result(eval_conn, filled_run, rag_payload):
 
 
 @pytest.mark.db
+def test_update_answer_keeps_trace_details_in_metadata(eval_conn, filled_run, rag_payload):
+    details = {"cards": {"candidate_nos": ["TEST-0001"]}, "card_policy_nos": ["TEST-0001"], "handler": "default_rag"}
+    result = rag_result(rag_payload).model_copy(update={"trace_details": details})
+
+    update_answer(eval_conn, filled_run, "single-000001", result)
+
+    metadata = sample_row(eval_conn, filled_run, "single-000001")["metadata"]
+    assert {key: metadata[key] for key in details} == details
+    assert metadata["tokens"] == {"prompt_tokens": 850, "completion_tokens": 40}
+
+
+@pytest.mark.db
 def test_update_answer_keeps_retrieved_chunks_in_metadata(eval_conn, filled_run, rag_payload):
     retrieved = rag_payload["trace"]["retrieved_chunks"]
     result = rag_result(rag_payload).model_copy(update={"retrieved_chunks": retrieved})

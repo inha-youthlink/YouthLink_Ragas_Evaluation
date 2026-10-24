@@ -153,7 +153,7 @@ RAG는 다단계 검색(multi-stage retrieval)이다. 청크로 검색 → 정�
 
 | 대상 | 내용 |
 | --- | --- |
-| RAG 담당 | 라우터·핸들러 PR 일정, `trace.handler` 값 목록, 분리 검색 순위 해석, 분석 토큰을 `trace.tokens`에 합칠지, 청크 버전을 trace에 넣을지 |
+| RAG 담당 | 라우터·핸들러 PR 일정, `trace.handler` 값 목록, 분리 검색 순위 해석, 분석 토큰을 `trace.tokens`에 합칠지, 청크 버전을 trace에 넣을지, 1차 필터 통과 정책 목록(또는 필터에서 빠진 정책 여부)을 trace에 넣을지. 지금은 필터 후 정책 수만 있어 정답 정책이 필터에서 빠졌는지 검색 30개에 못 들었는지 구분할 수 없음 |
 | ETL 담당 | 비교할 청킹 방식 목록과 적재 시점 |
 
 ## 구현 체크리스트
@@ -162,9 +162,10 @@ RAG는 다단계 검색(multi-stage retrieval)이다. 청크로 검색 → 정�
 - [ ] R-2. `docs/PRD.md` "RAG 연동 계약"에 분석 토큰·빈 근거·`history` 반영
 - [ ] R-3. `GoldenSample`에 `mentions_policy_name`, `expected_intent` (선택 필드) + 테스트
 - [ ] R-4. 단계별 적중(`retrieval_hit`, `candidate_hit`, `card_hit`)과 순위 보조 지표 계산 (`retrieval` 모듈, 순수 함수) + 테스트 (분리 검색, 빈 검색, 동점, 단계 경계를 trace에서 읽음)
-- [ ] R-5. 결과 저장 (R-1 결정에 따라 스키마 또는 `metadata`). `rag_client`가 `trace.cards.candidate_nos`·`policies`도 저장 + 테스트
+- [x] R-5a. `rag_client`가 `trace.cards`, 카드 정책 번호(`policies`), `trace.analysis`, `trace.handler`, `trace.conditions`를 `metadata`에 원본 저장 + 테스트 (선택 키, 없으면 저장 안 함)
+- [ ] R-5b. 계산한 지표 저장 (R-1 결정에 따라 스키마 또는 `metadata`) + 테스트
 - [ ] R-6. `report`에 단계별 적중률·단계 간 손실 표, 나눠 보기 + 테스트
-- [ ] R-7. `rag_client`가 분석 토큰 저장 + 테스트
+- [x] R-7. `rag_client`가 분석 토큰을 `metadata.tokens`의 `analysis_prompt_tokens`·`analysis_completion_tokens`로 저장 + 테스트
 - [ ] R-8. golden_v2 검수에 `mentions_policy_name`·1차 필터 확인 추가, 이름 없는 질문 확보 (`ragas-dataset-review` 스킬 갱신)
 - [ ] R-9. `routing_v1.jsonl` 초안 → 사용자 검수 → 확정
 - [ ] R-10. `route` 서브커맨드 (intent·정책 지목 채점) + 테스트
