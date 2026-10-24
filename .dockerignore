@@ -1,0 +1,25 @@
+# 이미지에 넣지 않을 파일 (비밀값·로컬 산출물 차단)
+.env
+.env.*
+!.env.example
+.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+.idea/
+.claude/
+.omc/
+results/
+tests/
+docs/
+aws/
+db/
+k8s/
+Dockerfile
+.dockerignore
+*.md
+!requirements.txt
+면접.md
+요청사항.md

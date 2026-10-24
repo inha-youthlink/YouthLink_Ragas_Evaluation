@@ -161,8 +161,8 @@
 - [x] 2-7. `baseline_client` + 테스트 (`AsyncMock` OpenAI)
 - [x] 3-1. `generate` + 테스트
 - [x] 3-2. `runner` + 테스트 (`--repeat`, `--offline`, `--baseline`, 재개, 실패 시 `FAILED`)
-- [ ] 4-1. `Dockerfile` (Python 3.12, `datasets/` 포함)
-- [ ] 4-2. `k8s/ragas-eval-job.yaml`
+- [x] 4-1. `Dockerfile` (Python 3.12, `datasets/` 포함, 비루트 실행, `.dockerignore`로 `.env` 차단)
+- [x] 4-2. `k8s/ragas-eval-job.yaml` (ConfigMap `ragas-eval-config` + Secret `ragas-eval-secrets` 주입. 이미지 주소·`RAG_BASE_URL`·`OPENAI_BASE_URL`은 배포 환경에 맞게 채움)
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
