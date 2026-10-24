@@ -242,6 +242,7 @@ erDiagram
 | avg_answer_relevancy | NUMERIC(4,3) | NULL | | |
 | avg_factual_correctness | NUMERIC(4,3) | NULL | | |
 | avg_reference_faithfulness | NUMERIC(4,3) | NULL | | |
+| avg_answer_coverage | NUMERIC(4,3) | NULL | | |
 | started_at | TIMESTAMPTZ | NOT NULL | NOW() | |
 | finished_at | TIMESTAMPTZ | NULL | | |
 | metadata | JSONB | NOT NULL | '{}'::jsonb | |
@@ -264,6 +265,7 @@ erDiagram
 | answer_relevancy | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | factual_correctness | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | reference_faithfulness | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
+| answer_coverage | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | latency_ms | INTEGER | NULL | | |
 | created_at | TIMESTAMPTZ | NOT NULL | NOW() | |
 | metadata | JSONB | NOT NULL | '{}'::jsonb | |

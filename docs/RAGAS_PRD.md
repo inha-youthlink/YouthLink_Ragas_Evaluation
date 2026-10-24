@@ -164,7 +164,7 @@
 | 낮음 | 높음 | 사실만 말했지만 정답 내용을 빠뜨림 |
 | 낮음 | 낮음 | 정답을 빠뜨리고 지어냄 |
 
-| DB 변경 (예정) | 타입 | 제약 |
+| DB 변경 | 타입 | 제약 |
 | --- | --- | --- |
 | `ragas_evaluation_samples.answer_coverage` | NUMERIC(4,3) NULL | CHECK 0 ~ 1 |
 | `ragas_evaluation_run.avg_answer_coverage` | NUMERIC(4,3) NULL | |
@@ -294,6 +294,7 @@
 | avg_answer_relevancy | NUMERIC(4,3) | NULL | | |
 | avg_factual_correctness | NUMERIC(4,3) | NULL | | |
 | avg_reference_faithfulness | NUMERIC(4,3) | NULL | | |
+| avg_answer_coverage | NUMERIC(4,3) | NULL | | |
 | started_at | TIMESTAMPTZ | NOT NULL | NOW() | |
 | finished_at | TIMESTAMPTZ | NULL | | |
 | metadata | JSONB | NOT NULL | '{}'::jsonb | |
@@ -316,6 +317,7 @@
 | answer_relevancy | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | factual_correctness | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | reference_faithfulness | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
+| answer_coverage | NUMERIC(4,3) | NULL | | CHECK 0 ~ 1 |
 | latency_ms | INTEGER | NULL | | |
 | created_at | TIMESTAMPTZ | NOT NULL | NOW() | |
 | metadata | JSONB | NOT NULL | '{}'::jsonb | |
@@ -339,6 +341,7 @@
 | `latency_ms` 추가 | 응답 속도 집계 |
 | `mode` 컬럼 (`metadata.mode` 대신) | `rag`·`baseline` run 필터·비교 |
 | `factual_correctness`, `reference_faithfulness` 추가 | 검색 없는 `baseline`과 공통 비교 지표 |
+| `answer_coverage` 추가 (`ALTER ... ADD COLUMN IF NOT EXISTS`) | 정답 밖 사실을 감점하지 않는 정답 누락 지표. 기존 행은 NULL |
 
 ## 코드 구조 (`rag_ragas_evaluation/`)
 
@@ -426,7 +429,7 @@
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
-- [ ] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
+- [x] 6-1. `answer_coverage` 컬럼 추가 (`db/ragas_schema.sql`, `docs/Schema.md`, PRD "DB 추가 테이블"), 임시 PostgreSQL 2회 적용 확인
 - [ ] 6-2. `scorer` 커버리지 지표 + 테스트 (덧붙임 1.0, 절반 누락 0.5, 주장 0개 NULL, 분해 옵션 high/high 전달)
 - [ ] 6-3. `repository`·`runner` 저장·집계·재개 반영 + 테스트
 - [ ] 6-4. `report` 지표 7개 + 테스트

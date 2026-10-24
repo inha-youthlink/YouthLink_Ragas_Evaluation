@@ -103,4 +103,13 @@ CREATE INDEX IF NOT EXISTS idx_ragas_samples_run
 CREATE INDEX IF NOT EXISTS idx_ragas_samples_policy
     ON ragas_evaluation_samples (policy_no);
 
+-- answer_coverage: 이미 만들어진 테이블에도 추가되도록 ALTER로 둔다. 기존 행은 NULL
+ALTER TABLE ragas_evaluation_run
+    ADD COLUMN IF NOT EXISTS avg_answer_coverage NUMERIC(4, 3);
+
+ALTER TABLE ragas_evaluation_samples
+    ADD COLUMN IF NOT EXISTS answer_coverage NUMERIC(4, 3)
+        CONSTRAINT chk_ragas_samples_answer_coverage
+        CHECK (answer_coverage IS NULL OR answer_coverage BETWEEN 0 AND 1);
+
 COMMIT;

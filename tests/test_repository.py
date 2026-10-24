@@ -135,6 +135,20 @@ def test_duplicate_sample_in_run_fails(eval_conn, run_id, golden_record):
 
 
 @pytest.mark.db
+def test_answer_coverage_columns_start_null(eval_conn, filled_run):
+    assert run_row(eval_conn, filled_run)["avg_answer_coverage"] is None
+    assert sample_row(eval_conn, filled_run, "single-000001")["answer_coverage"] is None
+
+
+@pytest.mark.db
+def test_answer_coverage_rejects_out_of_range(eval_conn, filled_run):
+    with pytest.raises(psycopg.errors.CheckViolation):
+        eval_conn.execute(
+            "UPDATE ragas_evaluation_samples SET answer_coverage = 1.5 WHERE run_id = %s", [filled_run]
+        )
+
+
+@pytest.mark.db
 def test_update_answer_stores_rag_result(eval_conn, filled_run, rag_payload):
     update_answer(eval_conn, filled_run, "single-000001", rag_result(rag_payload))
 
