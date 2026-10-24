@@ -173,6 +173,65 @@ def test_render_marks_unfinished_run():
     assert "RUNNING" in text and "집계 전" in text
 
 
+def retrieval(card, candidate, retrieved, filtered=None, rank=None):
+    hits = {f"hit_at_{k}": None if retrieved is None else int(rank is not None and rank <= k) for k in (1, 3, 5, 10)}
+    reciprocal = None if retrieved is None else (1 / rank if rank else 0.0)
+    return {
+        "card_hit": card,
+        "candidate_hit": candidate,
+        "retrieval_hit": retrieved,
+        "filter_hit": filtered,
+        "rank": rank,
+        **hits,
+        "reciprocal_rank": reciprocal,
+    }
+
+
+def rag_report_data(*retrievals):
+    samples = [
+        sample_row(f"single-00000{i}", Decimal("0.500"), retrieval=r) for i, r in enumerate(retrievals, start=1)
+    ]
+    return report_data(run=run_row(mode="rag"), samples=samples)
+
+
+def test_render_shows_retrieval_rates_by_stage():
+    data = rag_report_data(retrieval(1, 1, 1, filtered=1, rank=1), retrieval(0, 1, 1, rank=4))
+
+    text = render(data)
+
+    section = text.split("## 검색 적중률")[1].split("\n## ")[0]
+    assert "| 1차 필터 | filter_hit | 1.000 | 1 |" in section
+    assert "| 검색 | retrieval_hit | 1.000 | 2 |" in section
+    assert "| 검색 | hit_at_1 | 0.500 | 2 |" in section
+    assert "| 검색 | hit_at_5 | 1.000 | 2 |" in section
+    assert "| 검색 | MRR | 0.625 | 2 |" in section
+    assert "| 후보 | candidate_hit | 1.000 | 2 |" in section
+    assert "| 카드 | card_hit | 0.500 | 2 |" in section
+
+
+def test_render_counts_samples_by_dropped_stage():
+    data = rag_report_data(
+        retrieval(1, 1, 1, rank=1),
+        retrieval(0, 1, 1, rank=2),
+        retrieval(0, 0, 1, rank=3),
+        retrieval(0, 0, 0, filtered=1),
+        retrieval(0, 0, 0, filtered=0),
+        retrieval(None, None, None),
+    )
+
+    text = render(data)
+
+    section = text.split("## 검색 적중률")[1].split("\n## ")[0]
+    for cause in ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가"):
+        assert f"| {cause} | 1 |" in section
+
+
+def test_render_without_retrieval_metrics_has_no_retrieval_section():
+    text = render(report_data())
+
+    assert "## 검색 적중률" not in text
+
+
 def test_report_path_names_file_by_run_conditions(tmp_path):
     path = report_path(run_row(), tmp_path)
 
@@ -216,6 +275,23 @@ def test_load_report_data_reads_run_samples_and_mode_averages(eval_conn, golden_
     assert (averages["baseline"]["runs"], averages["baseline"]["avg_factual_correctness"]) == (1, Decimal("0.200"))
     assert [s["sample_id"] for s in data.samples] == [golden_record["sample_id"]]
     assert data.samples[0]["errors"] is None
+
+
+@pytest.mark.db
+def test_load_report_data_reads_retrieval_metrics(eval_conn, golden_record):
+    version = f"golden_v{uuid4().int % 10**9}"
+    run_id = insert_run(
+        eval_conn, dataset_version=version, repeat_no=1, mode="rag", judge_model="test-judge", embedding_model="test-emb"
+    )
+    sample = GoldenSample.model_validate(golden_record)
+    insert_samples(eval_conn, run_id, [sample])
+    metrics = retrieval(1, 1, 1, rank=1)
+    result = RagResult(answer="답변", retrieved_contexts=[], chunks=[])
+    update_answer(eval_conn, run_id, sample.sample_id, result, retrieval=metrics)
+
+    data = load_report_data(eval_conn, run_id)
+
+    assert data.samples[0]["retrieval"] == metrics
 
 
 @pytest.mark.db

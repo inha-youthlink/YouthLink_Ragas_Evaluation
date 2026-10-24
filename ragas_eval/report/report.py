@@ -19,6 +19,16 @@ QUESTION_MAX_CHARS = 60
 ANSWER_MAX_CHARS = 200
 # baseline 대비 rag 개선폭 (PRD "베이스라인 모드" 비교 지표 포함 7개 전부)
 COMPARE_MODES = ("baseline", "rag")
+# 정책을 좁히는 순서대로 (단계, 표시 이름, metadata.retrieval 키). MRR은 역순위의 평균
+RETRIEVAL_ROWS = (
+    ("1차 필터", "filter_hit", "filter_hit"),
+    ("검색", "retrieval_hit", "retrieval_hit"),
+    *(("검색", f"hit_at_{k}", f"hit_at_{k}") for k in (1, 3, 5, 10)),
+    ("검색", "MRR", "reciprocal_rank"),
+    ("후보", "candidate_hit", "candidate_hit"),
+    ("카드", "card_hit", "card_hit"),
+)
+DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가")
 
 SELECT_RUN = "SELECT * FROM ragas_evaluation_run WHERE run_id = %(run_id)s"
 
@@ -40,7 +50,8 @@ SELECT_MODE_AVERAGES = sql.SQL(
 
 SELECT_SAMPLES = sql.SQL(
     """
-    SELECT sample_id, policy_no, question, answer, {metrics}, latency_ms, metadata->'errors' AS errors
+    SELECT sample_id, policy_no, question, answer, {metrics}, latency_ms, metadata->'errors' AS errors,
+           metadata->'retrieval' AS retrieval
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s
     ORDER BY sample_id
@@ -99,11 +110,12 @@ def render(data: ReportData) -> str:
         _summary(run, data.samples),
         _conditions(run),
         _averages(run),
+        _retrieval(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
         _low_samples(data.samples),
     ]
-    return "\n\n".join(sections) + "\n"
+    return "\n\n".join(section for section in sections if section) + "\n"
 
 
 def _summary(run: Mapping[str, Any], samples: Sequence[Mapping[str, Any]]) -> str:
@@ -131,6 +143,41 @@ def _conditions(run: Mapping[str, Any]) -> str:
 def _averages(run: Mapping[str, Any]) -> str:
     rows = [[name, _score(run[f"avg_{name}"])] for name in METRIC_NAMES]
     return "## 지표 평균\n\n" + _table(["지표", "평균"], rows)
+
+
+def _retrieval(samples: Sequence[Mapping[str, Any]]) -> str:
+    """PRD "검색 적중률 평가": 단계별 적중률과 정답 정책이 빠진 단계별 샘플 수. 검색 없는 run은 생략."""
+    metrics = [s["retrieval"] for s in samples if s.get("retrieval")]
+    if not metrics:
+        return ""
+    rows = []
+    for stage, name, key in RETRIEVAL_ROWS:
+        # NULL(판단할 수 없음)은 0점이 아니라 평균에서 뺀다
+        values = [m[key] for m in metrics if m.get(key) is not None]
+        rows.append([stage, name, _score(sum(values) / len(values)) if values else "-", len(values)])
+    causes = [_drop_cause(m) for m in metrics]
+    title = f"## 검색 적중률 (검색 결과가 저장된 샘플 {len(metrics)}건)"
+    return "\n\n".join(
+        [
+            title,
+            _table(["단계", "지표", "평균", "계산 대상 샘플"], rows),
+            "### 정답 정책이 빠진 단계",
+            _table(["원인", "샘플 수"], [[cause, causes.count(cause)] for cause in DROP_CAUSES]),
+        ]
+    )
+
+
+def _drop_cause(m: Mapping[str, Any]) -> str:
+    # 바깥 단계부터 본다. 카드에 있으면 정상, 아니면 처음으로 빠진 단계가 원인 (PRD 원인 표)
+    if m.get("card_hit") == 1:
+        return "정상"
+    if m.get("card_hit") == 0 and m.get("candidate_hit") == 1:
+        return "카드 선택"
+    if m.get("candidate_hit") == 0 and m.get("retrieval_hit") == 1:
+        return "후보 선택"
+    if m.get("retrieval_hit") == 0:
+        return "1차 필터" if m.get("filter_hit") == 0 else "검색"
+    return "판단 불가"
 
 
 def _mode_comparison(dataset_version: str, mode_averages: Sequence[Mapping[str, Any]]) -> str:
