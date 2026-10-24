@@ -8,7 +8,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 
 - Python 3.12, `ragas` 0.4.x, `langchain-core` 1.x, `langchain-community<0.4`, `psycopg` 3, `httpx`, `pydantic-settings`, `pytest`
 - 지표는 v0.4 API(`ragas.metrics.collections`, `await metric.ascore(...)`)를 쓴다.
-- 패키지는 `ragas_eval/`, 진입점은 `python -m ragas_eval {generate|run|report}`이다.
+- 패키지는 `ragas_eval/`, 진입점은 `python -m ragas_eval {generate|run|route|report}`이다.
 - 모듈은 `ragas_eval/<모듈>/<모듈>.py` 폴더 단위로 두고 역할은 고정한다. import는 `from ragas_eval.<모듈> import <모듈>`.
   - `config.py`: 환경변수 (최상위)
   - `policy_source/`: `policy` → `Document`
@@ -18,6 +18,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
   - `baseline_client/`: RAG 없이 LLM 직접 호출 (`--baseline`)
   - `scorer/`: 채점
   - `retrieval/`: 검색 적중률 계산 (채점 LLM 없음)
+  - `routing/`: 라우팅 평가 채점·집계 (채점 LLM 없음)
   - `repository/`: 평가 테이블 쓰기
   - `runner/`: 실행 순서 조율
   - `report/`: 결과 조회 → 마크다운 성적표 (`results/`)
@@ -51,7 +52,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 - 사용자 확인 없는 `generate`·`run` 실제 실행 (LLM 비용 발생)
 - `print()` 디버그 출력을 남긴 채 커밋 (CLI 결과 출력은 예외)
 - Python 3.14 venv 생성, `langchain-community` 0.4 이상으로 업그레이드
-- `DROP`, `TRUNCATE`, 평가 테이블 전체 `DELETE`
+- `DROP`, `TRUNCATE`, 평가 테이블 전체 `DELETE` (예외: 평가 테이블 제약을 다시 정의하는 `ALTER TABLE ... DROP CONSTRAINT IF EXISTS`. 행을 바꾸지 않고 바로 뒤에서 같은 이름으로 다시 만들 때만)
 - `git push --force`, `git reset --hard`, `git clean`
 - 요청받지 않은 리팩터링, 의존성 추가
 

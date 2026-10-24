@@ -1,4 +1,4 @@
-# generate, run 서브커맨드를 정의하는 CLI
+# generate, run, route, report 서브커맨드를 정의하는 CLI
 import argparse
 from collections.abc import Sequence
 from uuid import UUID
@@ -34,6 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--baseline", action="store_true", help="RAG 없이 BASELINE_MODEL에 직접 질문 (할루시네이션 기준선)")
     run_parser.add_argument("--resume", metavar="RUN_ID", help="RUNNING으로 남은 run의 미완료 샘플만 이어서 실행")
 
+    route_parser = sub.add_parser("route", help="확정 라우팅 데이터셋으로 질문 유형 분류 평가")
+    route_parser.add_argument("--routing", required=True)
+
     report_parser = sub.add_parser("report", help="run 결과를 마크다운 성적표로 저장")
     report_parser.add_argument("--run", required=True, type=UUID, metavar="RUN_ID")
     report_parser.add_argument("--out-dir", default=report.DEFAULT_OUT_DIR)
@@ -59,6 +62,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"run {o.run_id}: {o.status} (미응답 {o.pending_answer}건, 미채점 {o.pending_scores}건)")
         # 미완료 run이 있으면 Job이 실패로 보이게 해 --resume이 필요함을 드러낸다
         if any(o.status != "SUCCEEDED" for o in outcomes):
+            raise SystemExit(1)
+    elif args.command == "route":
+        o = runner.route(args.routing)
+        print(f"run {o.run_id}: {o.status} (미응답 {o.pending_answer}건)")
+        if o.status != "SUCCEEDED":
             raise SystemExit(1)
     elif args.command == "report":
         path = report.report(args.run, out_dir=args.out_dir)

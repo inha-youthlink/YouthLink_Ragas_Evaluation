@@ -14,11 +14,19 @@ from openai import AsyncOpenAI
 
 from ragas_eval.baseline_client import baseline_client
 from ragas_eval.config import Settings, get_settings
-from ragas_eval.dataset.dataset import GoldenSample, load_evaluation_samples, load_golden, reviewed_only
+from ragas_eval.dataset.dataset import (
+    GoldenSample,
+    RoutingSample,
+    load_evaluation_samples,
+    load_golden,
+    load_routing,
+    reviewed_only,
+)
 from ragas_eval.rag_client import rag_client
 from ragas_eval.rag_client.rag_client import RagResult
 from ragas_eval.repository import repository
 from ragas_eval.retrieval import retrieval
+from ragas_eval.routing import routing
 from ragas_eval.scorer import scorer
 from ragas_eval.scorer.scorer import Mode, ScoreResult
 
@@ -30,8 +38,13 @@ DB_CONNECT_TIMEOUT_SECONDS = 10
 RAG_RETRIES = 2
 RAG_RETRY_DELAY_SECONDS = 1.0
 DATASET_FILE = re.compile(r"(golden_v\d+)\.jsonl")
+ROUTING_FILE = re.compile(r"(routing_v\d+)\.jsonl")
+ROUTING_MODE = "routing"
+# 라우팅 평가는 채점 LLM·임베딩을 쓰지 않아 NOT NULL 컬럼에 'none'을 남긴다 (baseline의 rag_retriever와 같은 방식)
+NO_MODEL = "none"
 
 Answerer = Callable[[GoldenSample], Awaitable[RagResult]]
+RoutingAnswerer = Callable[[RoutingSample], Awaitable[RagResult]]
 Scorer = Callable[[GoldenSample, str, list[str]], Awaitable[ScoreResult]]
 
 
@@ -190,15 +203,19 @@ async def execute(
         await asyncio.gather(*tasks)
         return _finish(conn, run_id)
     except Exception:
-        # 남은 작업이 FAILED run에 쓰지 않도록 멈춘 뒤 종료 처리한다
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        conn.rollback()
-        repository.finish_run(conn, run_id, "FAILED")
-        conn.commit()
-        logger.error("예기치 못한 오류로 run을 FAILED로 종료: run_id=%s", run_id)
+        await _fail_run(conn, run_id, tasks)
         raise
+
+
+async def _fail_run(conn: psycopg.Connection, run_id: UUID, tasks: Sequence[asyncio.Task[None]]) -> None:
+    # 남은 작업이 FAILED run에 쓰지 않도록 멈춘 뒤 종료 처리한다
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    conn.rollback()
+    repository.finish_run(conn, run_id, "FAILED")
+    conn.commit()
+    logger.error("예기치 못한 오류로 run을 FAILED로 종료: run_id=%s", run_id)
 
 
 async def _process(
@@ -343,12 +360,114 @@ async def _workers(settings: Settings, mode: Mode) -> AsyncIterator[Workers]:
             yield Workers(answer_offline, score)
 
 
+def route(routing_path: str) -> RunOutcome:
+    """PRD "라우팅 평가": 대화 없는 단일 질문을 RAG에 보내 질문 유형을 채점한다. 반복·재개 없이 run 1개."""
+    version = routing_dataset_version(routing_path)
+    samples = reviewed_only(load_routing(routing_path))
+    if not samples:
+        raise ValueError(f"평가할 샘플이 없음 (reviewed 필터 후 0건): {routing_path}")
+    settings = get_settings()
+    with _connect(settings) as conn:
+        run_id = start_routing_run(conn, samples, dataset_version=version)
+        return asyncio.run(_route(conn, settings, run_id, {s.sample_id: s for s in samples}))
+
+
+def routing_dataset_version(routing_path: str) -> str:
+    matched = ROUTING_FILE.fullmatch(Path(routing_path).name)
+    if not matched:
+        raise ValueError(f"확정 데이터셋(routing_vN.jsonl)만 평가할 수 있음: {Path(routing_path).name}")
+    return matched.group(1)
+
+
+def start_routing_run(conn: psycopg.Connection, samples: Iterable[RoutingSample], *, dataset_version: str) -> UUID:
+    run_id = repository.insert_run(
+        conn,
+        dataset_version=dataset_version,
+        repeat_no=1,
+        mode=ROUTING_MODE,
+        judge_model=NO_MODEL,
+        embedding_model=NO_MODEL,
+    )
+    repository.insert_samples(conn, run_id, samples)
+    conn.commit()
+    return run_id
+
+
+async def execute_routing(
+    conn: psycopg.Connection,
+    run_id: UUID,
+    samples: Mapping[str, RoutingSample],
+    answer: RoutingAnswerer,
+    concurrency: int = CONCURRENCY,
+) -> RunOutcome:
+    """응답 → 유형 채점을 샘플마다 저장하고, 모두 응답했으면 run.metadata.routing에 집계해 종료한다."""
+    semaphore = asyncio.Semaphore(concurrency)
+    scored: list[tuple[list[str], dict[str, Any]]] = []
+
+    async def process(sample: RoutingSample) -> None:
+        async with semaphore:
+            try:
+                result = await answer(sample)
+            except Exception as e:
+                logger.warning("응답 실패, answer NULL 유지: sample_id=%s %s", sample.sample_id, type(e).__name__)
+                return
+            score = routing.score_routing(sample.expected_intent, result.trace_details.get("analysis"))
+            repository.update_answer(conn, run_id, sample.sample_id, result, routing=score)
+            _record_rag_settings(conn, run_id, result)
+            conn.commit()
+            scored.append((sample.expected_intent, score))
+
+    tasks = [asyncio.create_task(process(sample)) for sample in samples.values()]
+    try:
+        await asyncio.gather(*tasks)
+        # 라우팅은 RAGAS 지표를 채우지 않으므로 응답 여부만으로 완료를 판단한다
+        unanswered = len(repository.find_pending(conn, run_id).need_answer)
+        if unanswered:
+            conn.commit()
+            logger.warning("미응답 %d건이 있어 RUNNING으로 남김. 새 route로 다시 실행: run_id=%s", unanswered, run_id)
+            return RunOutcome(run_id, "RUNNING", unanswered, 0)
+        repository.update_run_metadata(conn, run_id, {"routing": routing.summarize_routing(scored)})
+        repository.finish_run(conn, run_id, "SUCCEEDED")
+        conn.commit()
+        return RunOutcome(run_id, "SUCCEEDED", 0, 0)
+    except Exception:
+        await _fail_run(conn, run_id, tasks)
+        raise
+
+
+async def _route(
+    conn: psycopg.Connection, settings: Settings, run_id: UUID, samples: Mapping[str, RoutingSample]
+) -> RunOutcome:
+    async with _routing_answerer(settings) as answer:
+        return await execute_routing(conn, run_id, samples, answer)
+
+
+@asynccontextmanager
+async def _routing_answerer(settings: Settings) -> AsyncIterator[RoutingAnswerer]:
+    async with rag_client.make_client(settings.rag_base_url) as http:
+
+        async def answer(sample: RoutingSample) -> RagResult:
+            # 대화 없는 단일 질문이라 프로필·앞 턴 없이 보낸다
+            return await _call_with_retry(http, sample.question, None)
+
+        yield answer
+
+
 async def call_rag_with_retry(
     http: httpx.AsyncClient, sample: GoldenSample, delay_seconds: float = RAG_RETRY_DELAY_SECONDS
 ) -> RagResult:
+    return await _call_with_retry(http, sample.question, sample.profile, delay_seconds)
+
+
+async def _call_with_retry(
+    http: httpx.AsyncClient,
+    question: str,
+    profile: Mapping[str, Any] | None,
+    delay_seconds: float = RAG_RETRY_DELAY_SECONDS,
+) -> RagResult:
     for attempt in range(RAG_RETRIES + 1):
         try:
-            return await rag_client.call_pipeline(http, sample.question, sample.profile)
+            return await rag_client.call_pipeline(http, question, profile)
         except (httpx.TransportError, httpx.HTTPStatusError) as e:
             is_server_error = not isinstance(e, httpx.HTTPStatusError) or e.response.status_code >= 500
             if not is_server_error or attempt == RAG_RETRIES:

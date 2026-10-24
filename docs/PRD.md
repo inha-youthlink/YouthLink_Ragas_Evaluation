@@ -84,7 +84,7 @@
 | 경로 | 역할 |
 | --- | --- |
 | `ragas_eval/__main__.py` | 진입점 |
-| `ragas_eval/cli.py` | `generate`, `run` |
+| `ragas_eval/cli.py` | `generate`, `run`, `route`, `report` |
 | `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
 | `ragas_eval/policy_source/policy_source.py` | `policy` → `Document` |
 | `ragas_eval/generate/generate.py` | `TestsetGenerator` → `policy_no` 복원 → `golden_candidates.jsonl` |
@@ -92,6 +92,7 @@
 | `ragas_eval/rag_client/rag_client.py` | RAG 호출, `RagResult` 타입 |
 | `ragas_eval/baseline_client/baseline_client.py` | LLM 직접 호출 → `RagResult` (`retrieved_contexts = []`) |
 | `ragas_eval/scorer/scorer.py` | 모드별 지표 `ascore`, `ScoreResult` 타입 |
+| `ragas_eval/routing/routing.py` | 라우팅 평가 채점 (`trace.analysis` → `intent_correct`)·run 집계 (정확도, 분석 실패율, 유형별, 혼동 행렬) |
 | `ragas_eval/retrieval/retrieval.py` | 검색 적중률 계산 (`samples.metadata`의 trace 원본 → 카드·후보·검색·필터 적중, Hit@k, 역순위) |
 | `ragas_eval/repository/repository.py` | run/samples INSERT·UPDATE |
 | `ragas_eval/runner/runner.py` | 실행 순서 1~5, `--repeat`, `--offline`, `--baseline`, `--resume` |
@@ -109,6 +110,7 @@
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --offline`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --resume <run_id>`
+- `python -m ragas_eval route --routing datasets/routing_v1.jsonl`
 - `python -m ragas_eval report --run <run_id>`
 
 ## 실행 환경

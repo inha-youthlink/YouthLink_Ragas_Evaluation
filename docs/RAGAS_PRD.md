@@ -233,7 +233,7 @@
 | run_id | UUID | NOT NULL | gen_random_uuid() | PK |
 | dataset_version | VARCHAR(50) | NOT NULL | | |
 | repeat_no | INTEGER | NOT NULL | 1 | CHECK >= 1 |
-| mode | VARCHAR(20) | NOT NULL | 'rag' | CHECK IN ('rag', 'baseline', 'offline') |
+| mode | VARCHAR(20) | NOT NULL | 'rag' | CHECK IN ('rag', 'baseline', 'offline', 'routing') |
 | rag_chat_model | VARCHAR(100) | NULL | | |
 | rag_retriever | VARCHAR(50) | NULL | | |
 | rag_top_k | INTEGER | NULL | | |
@@ -295,6 +295,7 @@
 | `mode` 컬럼 (`metadata.mode` 대신) | `rag`·`baseline` run 필터·비교 |
 | `factual_correctness`, `reference_faithfulness` 추가 | 검색 없는 `baseline`과 공통 비교 지표 |
 | `answer_coverage` 추가 (`ALTER ... ADD COLUMN IF NOT EXISTS`) | 정답 밖 사실을 감점하지 않는 정답 누락 지표. 기존 행은 NULL |
+| `mode`에 `routing` 추가 (`DROP CONSTRAINT IF EXISTS` → `ADD CONSTRAINT`) | 라우팅 평가 run 저장 (`docs/RETRIEVE_PRD.md`). 제약만 다시 만들고 행은 바꾸지 않음. `judge_model`·`embedding_model`은 `'none'` |
 
 ## 구현 체크리스트
 

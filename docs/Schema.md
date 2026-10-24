@@ -228,7 +228,7 @@ erDiagram
 | run_id | UUID | NOT NULL | gen_random_uuid() | PK |
 | dataset_version | VARCHAR(50) | NOT NULL | | |
 | repeat_no | INTEGER | NOT NULL | 1 | CHECK >= 1 |
-| mode | VARCHAR(20) | NOT NULL | 'rag' | CHECK IN ('rag', 'baseline', 'offline') |
+| mode | VARCHAR(20) | NOT NULL | 'rag' | CHECK IN ('rag', 'baseline', 'offline', 'routing') |
 | rag_chat_model | VARCHAR(100) | NULL | | |
 | rag_retriever | VARCHAR(50) | NULL | | |
 | rag_top_k | INTEGER | NULL | | |

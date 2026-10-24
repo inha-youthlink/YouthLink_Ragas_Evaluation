@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS ragas_evaluation_run (
         CHECK (status IN ('RUNNING', 'SUCCEEDED', 'FAILED')),
 
     CONSTRAINT chk_ragas_run_mode
-        CHECK (mode IN ('rag', 'baseline', 'offline'))
+        CHECK (mode IN ('rag', 'baseline', 'offline', 'routing'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_ragas_run_started
@@ -111,5 +111,13 @@ ALTER TABLE ragas_evaluation_samples
     ADD COLUMN IF NOT EXISTS answer_coverage NUMERIC(4, 3)
         CONSTRAINT chk_ragas_samples_answer_coverage
         CHECK (answer_coverage IS NULL OR answer_coverage BETWEEN 0 AND 1);
+
+-- routing: 라우팅 평가 run. 이미 만들어진 테이블에도 허용 값이 넓어지도록 제약만 다시 만든다 (행 변경 없음)
+ALTER TABLE ragas_evaluation_run
+    DROP CONSTRAINT IF EXISTS chk_ragas_run_mode;
+
+ALTER TABLE ragas_evaluation_run
+    ADD CONSTRAINT chk_ragas_run_mode
+    CHECK (mode IN ('rag', 'baseline', 'offline', 'routing'));
 
 COMMIT;

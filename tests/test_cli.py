@@ -141,3 +141,28 @@ def test_main_writes_report_and_prints_path(monkeypatch, capsys):
 
     assert calls == [(UUID(int=7), "out")]
     assert f"out/golden_v1_rag_r1_{UUID(int=7)}.md" in capsys.readouterr().out
+
+
+def test_route_requires_routing_dataset():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["route"])
+
+
+def test_main_passes_routing_path_and_prints_outcome(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(runner, "route", lambda path: calls.append(path) or outcome("SUCCEEDED"))
+
+    main(["route", "--routing", "datasets/routing_v1.jsonl"])
+
+    assert calls == ["datasets/routing_v1.jsonl"]
+    out = capsys.readouterr().out
+    assert str(UUID(int=7)) in out and "SUCCEEDED" in out
+
+
+def test_main_route_exits_nonzero_when_incomplete(monkeypatch):
+    monkeypatch.setattr(runner, "route", lambda path: outcome("RUNNING", pending_answer=1))
+
+    with pytest.raises(SystemExit) as exc:
+        main(["route", "--routing", "datasets/routing_v1.jsonl"])
+
+    assert exc.value.code == 1

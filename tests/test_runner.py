@@ -12,7 +12,7 @@ import pytest
 from psycopg.rows import dict_row
 from pydantic import SecretStr
 
-from ragas_eval.dataset.dataset import GoldenSample
+from ragas_eval.dataset.dataset import GoldenSample, RoutingSample
 from ragas_eval.rag_client.rag_client import RagResult
 from ragas_eval.repository.repository import finish_run, get_run, insert_run, insert_samples, update_answer
 from ragas_eval.runner import runner
@@ -586,3 +586,108 @@ def test_check_resumable_rejects_run_started_before_answer_coverage(conn, golden
 
     with pytest.raises(ValueError, match="scoring_prompt"):
         check_resumable(conn, run_id, mode="rag", dataset_version="golden_v1", settings=fake_settings())
+
+
+# ---- 라우팅 평가 (route) ----
+
+
+def routing_samples(*expected):
+    samples = [
+        RoutingSample(sample_id=f"route-{i:06d}", question=f"라우팅 질문 {i}", expected_intent=e, reviewed=True)
+        for i, e in enumerate(expected, start=1)
+    ]
+    return {s.sample_id: s for s in samples}
+
+
+def routing_answer(intents_by_id, fail=()):
+    async def answer(sample):
+        if sample.sample_id in fail:
+            raise TimeoutError("가짜 타임아웃")
+        sub_queries = [{"intent": i} for i in intents_by_id[sample.sample_id]]
+        analysis = {"prompt_version": "analyze_test", "sub_queries": sub_queries, "fallback_reason": None}
+        return rag_answer(sample, trace_details={"analysis": analysis})
+
+    return answer
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [("datasets/routing_v1.jsonl", "routing_v1"), ("routing_v12.jsonl", "routing_v12")],
+)
+def test_routing_dataset_version_is_file_stem(path, expected):
+    assert runner.routing_dataset_version(path) == expected
+
+
+@pytest.mark.parametrize("path", ["datasets/routing_candidates.jsonl", "datasets/golden_v1.jsonl"])
+def test_routing_dataset_version_rejects_other_files(path):
+    with pytest.raises(ValueError, match="routing_vN"):
+        runner.routing_dataset_version(path)
+
+
+@pytest.mark.db
+def test_execute_routing_scores_samples_and_summarizes_run(conn):
+    samples = routing_samples(["policy_list"], ["policy_detail"])
+    run_id = runner.start_routing_run(conn, samples.values(), dataset_version="routing_v1")
+    answer = routing_answer({"route-000001": ["policy_list"], "route-000002": ["eligibility"]})
+
+    outcome = asyncio.run(runner.execute_routing(conn, run_id, samples, answer))
+
+    assert outcome == RunOutcome(run_id, "SUCCEEDED", 0, 0)
+    run = run_row(conn, run_id)
+    assert (run["mode"], run["dataset_version"], run["status"], run["sample_count"]) == ("routing", "routing_v1", "SUCCEEDED", 2)
+    assert (run["judge_model"], run["embedding_model"], run["rag_chat_model"]) == ("none", "none", "test-chat")
+    assert run["metadata"]["routing"]["accuracy"] == 0.5
+    assert run["metadata"]["routing"]["confusion"] == {"policy_list": {"policy_list": 1}, "policy_detail": {"eligibility": 1}}
+    rows = fetch(conn, "SELECT * FROM ragas_evaluation_samples WHERE run_id = %s ORDER BY sample_id", [run_id])
+    assert [r["metadata"]["routing"]["intent_correct"] for r in rows] == [1, 0]
+    assert [r["metadata"]["routing"]["predicted_intent"] for r in rows] == [["policy_list"], ["eligibility"]]
+    assert (rows[0]["policy_no"], rows[0]["ground_truth"], rows[0]["answer"]) == (None, None, "route-000001 답변")
+
+
+@pytest.mark.db
+def test_routing_answer_failure_leaves_run_running_without_summary(conn, caplog):
+    samples = routing_samples(["policy_list"], ["chitchat"])
+    run_id = runner.start_routing_run(conn, samples.values(), dataset_version="routing_v1")
+    answer = routing_answer({"route-000001": ["policy_list"], "route-000002": ["chitchat"]}, fail={"route-000002"})
+
+    with caplog.at_level(logging.WARNING):
+        outcome = asyncio.run(runner.execute_routing(conn, run_id, samples, answer))
+
+    assert outcome == RunOutcome(run_id, "RUNNING", 1, 0)
+    run = run_row(conn, run_id)
+    assert (run["status"], "routing" in run["metadata"]) == ("RUNNING", False)
+    assert "응답 실패, answer NULL 유지: sample_id=route-000002" in caplog.text
+
+
+@pytest.mark.db
+def test_routing_unexpected_error_marks_run_failed(conn):
+    samples = routing_samples(["policy_list"])
+    run_id = runner.start_routing_run(conn, samples.values(), dataset_version="routing_v1")
+
+    async def broken(sample):
+        return "RagResult가 아님"
+
+    with pytest.raises(Exception):
+        asyncio.run(runner.execute_routing(conn, run_id, samples, broken))
+
+    assert run_row(conn, run_id)["status"] == "FAILED"
+
+
+@pytest.mark.db
+def test_route_runs_reviewed_samples_from_file(monkeypatch, eval_schema_url):
+    samples = list(routing_samples(["chitchat"], ["out_of_scope"]).values())
+    unreviewed = samples[1].model_copy(update={"reviewed": False})
+    monkeypatch.setattr(runner, "get_settings", lambda: fake_settings(database_url=eval_schema_url))
+    monkeypatch.setattr(runner, "load_routing", lambda path: [samples[0], unreviewed])
+
+    @asynccontextmanager
+    async def fake_answerer(settings):
+        yield routing_answer({"route-000001": ["chitchat"]})
+
+    monkeypatch.setattr(runner, "_routing_answerer", fake_answerer)
+
+    outcome = runner.route("datasets/routing_v1.jsonl")
+
+    assert outcome.status == "SUCCEEDED"
+    with psycopg.connect(eval_schema_url) as c:
+        assert run_row(c, outcome.run_id)["sample_count"] == 1

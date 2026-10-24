@@ -8,10 +8,12 @@ import psycopg
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-from ragas_eval.dataset.dataset import GoldenSample
+from ragas_eval.dataset.dataset import GoldenSample, RoutingSample
 from ragas_eval.rag_client.rag_client import RagResult
 from ragas_eval.scorer.scorer import METRIC_NAMES, Mode, ScoreResult
 
+# 답변 품질 모드(scorer.Mode) + 라우팅 평가. 스키마 chk_ragas_run_mode와 같은 값
+RunMode = Mode | Literal["routing"]
 FinalStatus = Literal["SUCCEEDED", "FAILED"]
 FINAL_STATUSES = ("SUCCEEDED", "FAILED")
 
@@ -33,6 +35,13 @@ UPDATE_RUN_RAG_SETTINGS = """
     SET rag_chat_model = COALESCE(rag_chat_model, %(chat_model)s),
         rag_retriever = COALESCE(rag_retriever, %(retriever)s),
         rag_top_k = COALESCE(rag_top_k, %(top_k)s)
+    WHERE run_id = %(run_id)s AND status = 'RUNNING'
+"""
+
+# 라우팅 집계처럼 avg_* 컬럼이 없는 결과를 run.metadata에 합친다
+UPDATE_RUN_METADATA = """
+    UPDATE ragas_evaluation_run
+    SET metadata = metadata || %(patch)s
     WHERE run_id = %(run_id)s AND status = 'RUNNING'
 """
 
@@ -163,7 +172,7 @@ def insert_run(
     *,
     dataset_version: str,
     repeat_no: int,
-    mode: Mode,
+    mode: RunMode,
     judge_model: str,
     embedding_model: str,
     rag_chat_model: str | None = None,
@@ -195,14 +204,19 @@ def update_run_rag_settings(
     _execute_one(conn, UPDATE_RUN_RAG_SETTINGS, params, run_id)
 
 
-def insert_samples(conn: psycopg.Connection, run_id: UUID, samples: Iterable[GoldenSample]) -> int:
+def update_run_metadata(conn: psycopg.Connection, run_id: UUID, patch: Mapping[str, Any]) -> None:
+    _execute_one(conn, UPDATE_RUN_METADATA, {"run_id": run_id, "patch": Jsonb(dict(patch))}, run_id)
+
+
+def insert_samples(conn: psycopg.Connection, run_id: UUID, samples: Iterable[GoldenSample | RoutingSample]) -> int:
+    # 라우팅 샘플은 정답 정책·정답 문장이 없어 NULL로 둔다
     rows = [
         {
             "run_id": run_id,
             "sample_id": s.sample_id,
-            "policy_no": s.policy_no,
+            "policy_no": s.policy_no if isinstance(s, GoldenSample) else None,
             "question": s.question,
-            "ground_truth": s.ground_truth,
+            "ground_truth": s.ground_truth if isinstance(s, GoldenSample) else None,
         }
         for s in samples
     ]
@@ -220,6 +234,7 @@ def update_answer(
     sample_id: str,
     result: RagResult,
     retrieval: Mapping[str, Any] | None = None,
+    routing: Mapping[str, Any] | None = None,
 ) -> None:
     patch: dict[str, Any] = {}
     if result.tokens:
@@ -230,6 +245,8 @@ def update_answer(
     # 응답과 같은 UPDATE에 넣어, 재개 시 채점만 남은 샘플도 검색 적중률이 이미 있게 한다
     if retrieval is not None:
         patch["retrieval"] = dict(retrieval)
+    if routing is not None:
+        patch["routing"] = dict(routing)
     params = {
         "run_id": run_id,
         "sample_id": sample_id,
