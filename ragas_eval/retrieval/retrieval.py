@@ -33,7 +33,7 @@ def compute_retrieval_metrics(policy_no: str, metadata: Mapping[str, Any]) -> di
 
 
 def _policy_rank(policy_no: str, chunks: list[Mapping[str, Any]]) -> int | None:
-    # 지역·전국 분리 검색은 두 결과가 이어 붙어 오므로 점수로 다시 정렬한다. 동점은 응답 순서 유지 (안정 정렬)
+    # 응답 순서에 기대지 않도록 점수로 다시 정렬한다. 동점은 응답 순서 유지 (안정 정렬)
     ordered = sorted(chunks, key=lambda c: c["score"], reverse=True)
     policies = list(dict.fromkeys(c["policy_no"] for c in ordered))
     return policies.index(policy_no) + 1 if policy_no in policies else None

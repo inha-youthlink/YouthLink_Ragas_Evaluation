@@ -62,9 +62,9 @@
 | 구성 | 상태 |
 | --- | --- |
 | `youthlink-data-pipeline` | 수동 실행, 전체 수집, 삭제 정책 미반영. `policy_chunk`는 섹션 청크 `policy-v1` (정책당 최대 4개: SUMMARY·ELIGIBILITY·SUPPORT·APPLICATION) |
-| `YouthLink_RAG` | `POST /internal/pipeline`. 질문 분석(intent·검색어·조건 추출), 1차 필터링, 지역·전국 분리 검색 반영. 핸들러는 `default_rag` 하나 (라우터·전용 핸들러 8주차 작업 중) |
+| `YouthLink_RAG` | `POST /internal/pipeline`. 질문 분석(intent·검색어·조건 추출), 1차 필터는 프로필 값만 씀(질문의 지역·나이가 프로필과 다르면 되묻기), 검색은 한 번. 핸들러 4개: `search`·`detail`·`short`·`clarify`. 아직 배포 전 |
 | `rag_ragas_evaluation` | `generate`, `run`(`rag`·`baseline`·`offline`, 재개), `report` 구현. golden_v1으로 `rag`·`baseline` 1회 측정. `answer_coverage` 추가. 검색·라우팅 평가는 `docs/RETRIEVE_PRD.md` |
-| 로컬 개발 DB `policy_chunk` | 정책당 1청크 임시 적재본 (golden_v1 측정 기준). 섹션 청크와 다름 |
+| 로컬 개발 DB `policy_chunk` | 정책당 1청크 임시 적재본 (golden_v1 측정 기준). 섹션 청크와 다름. RAG 담당 확인용 DB는 섹션 청크 `policy-v1` (정책 3,543건, 청크 13,987개) |
 
 ## RAG 연동 계약
 
@@ -74,9 +74,9 @@
 | 요청 | `PipelineInput` = `{question, profile}` |
 | 응답 | `PipelineOutput` = `{answer, policies[], trace}` |
 | `trace` 필수 키 | `contexts` (list[str]), `retrieved_chunks` (`chunk_id`, `policy_no`, `score`, 선택 `content`), `latency_ms.total`, `tokens.prompt`·`tokens.completion`, `chat_model`, `retriever`, `top_k` |
-| `trace` 선택 키 | `cards` (`candidate_nos` list[str]), `analysis` (`tokens`), `handler` (str), `conditions`, `filtered_policy_nos` (list[str] 또는 null, debug 요청에만), 응답 `policies[].policy_no`. 있으면 형식만 확인 |
+| `trace` 선택 키 | `cards` (`candidate_nos` list[str]), `analysis` (`tokens`), `handler` (str), `clarify_reason` (`condition`·`policy`, 되묻기만), `conditions`, `filtered_policy_nos` (list[str] 또는 null, debug 요청에만), 응답 `policies[].policy_no`. 있으면 형식만 확인 |
 | `retrieved_contexts` | `trace.contexts` 그대로 (RAG가 LLM에 넘긴 정책별 근거 블록, 검색 순위 순). 청크 본문만이 아니라 신청 상태·방법·서류·기관·링크까지 포함해야 Faithfulness가 정확함 |
-| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`conditions`·`filtered_policy_nos` = trace 원본, `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만), `metadata.retrieval` = 검색 적중률 계산 결과 (`rag` 모드만, `docs/RETRIEVE_PRD.md` "결과 저장") |
+| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`clarify_reason`·`conditions`·`filtered_policy_nos` = trace 원본, `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만), `metadata.retrieval` = 검색 적중률 계산 결과 (`rag` 모드만, `docs/RETRIEVE_PRD.md` "결과 저장") |
 | run 기록 | `trace.chat_model`·`retriever`·`top_k` → `RagResult` → `ragas_evaluation_run.rag_chat_model`·`rag_retriever`·`rag_top_k` |
 
 ## 코드 구조 (`rag_ragas_evaluation/`)

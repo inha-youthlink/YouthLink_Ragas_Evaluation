@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 
 from ragas_eval.rag_client.rag_client import RagResult
 
-# RAG 생성 프롬프트(YouthLink_RAG generate_v1.md) 확정 전 임시 문구. 바꾸면 버전도 올려 run.metadata로 구분한다
+# RAG 답변 프롬프트(조각 조립)와 맞추지 않은 기준선 문구. 바꾸면 버전도 올려 run.metadata로 구분한다
 PROMPT_VERSION = "baseline-v0"
 SYSTEM_PROMPT = "당신은 한국 청년 정책 안내 도우미입니다. 사용자의 질문에 한국어로 정확하게 답하세요."
 BASELINE_RETRIEVER = "none"
