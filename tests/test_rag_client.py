@@ -237,6 +237,14 @@ def test_trace_details_keep_candidates_cards_analysis_handler_conditions(rag_pay
     }
 
 
+def test_trace_details_keep_clarify_reason(rag_payload):
+    payload = with_trace(rag_payload, handler="clarify", clarify_reason="condition")
+
+    result, _ = call_with(payload)
+
+    assert result.trace_details == {"handler": "clarify", "clarify_reason": "condition"}
+
+
 def test_analysis_tokens_are_recorded_apart_from_generation_tokens(rag_payload):
     payload = with_trace(rag_payload, analysis={"tokens": {"prompt": 700, "completion": None}})
 

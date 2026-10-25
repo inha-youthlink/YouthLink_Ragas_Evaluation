@@ -15,7 +15,7 @@ TOKEN_KEYS = {"prompt": "prompt_tokens", "completion": "completion_tokens"}
 # 질문 분석 토큰(trace.analysis.tokens)은 생성 토큰과 따로 기록된다
 ANALYSIS_TOKEN_KEYS = {"prompt": "analysis_prompt_tokens", "completion": "analysis_completion_tokens"}
 # 검색 적중률·라우팅 평가용으로 samples.metadata에 원본 그대로 남기는 trace 키 (없으면 저장하지 않음)
-TRACE_DETAIL_KEYS = ("cards", "analysis", "handler", "conditions")
+TRACE_DETAIL_KEYS = ("cards", "analysis", "handler", "clarify_reason", "conditions")
 
 
 class RagResult(BaseModel):
