@@ -323,4 +323,4 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 - [x] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
 - [ ] 6-6. golden_v2 `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
 - [x] 7-1. 되묻기 응답 채점 제외 (`runner`), 재개 대상 제외 (`repository`), 보고서 섹션 (`report`) + 테스트
-- [ ] 7-2. 7-1 DB 통합 테스트를 임시 PostgreSQL에서 실행
+- [x] 7-2. 7-1 DB 통합 테스트를 임시 PostgreSQL에서 실행
