@@ -170,7 +170,7 @@
 
 - `--repeat 3` → 1~5를 3회 (run 3행)
 - 이전 run 덮어쓰기 없음
-- 재개: `answer IS NULL` → 3부터, 지표 전부 NULL → 4부터
+- 재개: `answer IS NULL` → 3부터, 지표 전부 NULL → 4부터 (되묻기 응답은 제외, 아래 "되묻기 응답")
 - 재개 대상: `RUNNING`으로 남은 run만 (Pod 강제 종료·시간 초과). `FAILED` run은 재개하지 않고 새 run으로 다시 실행 (이전 run 수정 금지, run 1개 = 같은 조건 1회 실행)
 - 재개 방법: `run --resume <run_id>` 명시 (`--repeat`와 함께 불가). 채점만 남은 샘플은 저장된 응답 재사용
 - 재개 조건: `mode`, `dataset_version`, `judge_model`, `embedding_model` (baseline은 `BASELINE_MODEL`, `prompt_version`도), golden 질문·정답이 run 시작 때와 같을 것. 다르면 새 run
@@ -180,6 +180,21 @@
 - RAG 설정 변경 감지: 응답의 `chat_model`·`retriever`·`top_k`가 run에 기록된 값과 다르면 (RAG 재배포) `FAILED`
 - 커밋 단위: run·samples INSERT 1회, 샘플별 응답 UPDATE·채점 UPDATE마다 (중단돼도 진행분 보존)
 - 성적표: `ragas_evaluation_run.avg_*` (실행별), `ragas_evaluation_samples` (샘플별)
+
+### 되묻기 응답
+
+RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "clarify"`)은 근거·카드가 없어 정답과 비교할 답변이 아니다.
+
+| 항목 | 처리 |
+| --- | --- |
+| 종류 (`trace.clarify_reason`) | `condition`: 질문의 지역·나이가 프로필과 달라 되물음. `policy`: 가리킨 정책이 애매해 고르게 함 |
+| 저장 | 3단계(응답)는 그대로 저장 (`metadata.handler`·`clarify_reason`) |
+| 채점 | 4단계를 건너뜀. RAGAS 지표·검색 적중률 모두 NULL, `metadata.errors`에 남기지 않음 (실패가 아님) |
+| 집계 | `avg_*`는 NULL을 빼므로 자동 제외. `sample_count`에는 포함 |
+| 재개 | 지표 전부 NULL이어도 채점 대상으로 보지 않음 |
+| 보고서 | "되묻기 응답" 섹션에 이유별 건수·목록. 점수 낮은 샘플에서 제외 |
+
+프로필이 질문 내용과 맞게 만들어진 데이터셋이라면 조건 되묻기는 0건이어야 한다. 나오면 프로필(데이터셋) 또는 RAG의 조건 추출을 확인한다.
 
 ## 오프라인 모드 (`run --offline`)
 
@@ -218,7 +233,7 @@
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
 | 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
-| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 |
+| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
 | 비용 | LLM 호출 없음 |
@@ -307,3 +322,5 @@
 - [x] 6-4. `report` 지표 7개 + 테스트
 - [x] 6-5. `scoring_prompt` 버전 올림, 이전 run 재개 차단 테스트
 - [ ] 6-6. golden_v2 `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
+- [x] 7-1. 되묻기 응답 채점 제외 (`runner`), 재개 대상 제외 (`repository`), 보고서 섹션 (`report`) + 테스트
+- [ ] 7-2. 7-1 DB 통합 테스트를 임시 PostgreSQL에서 실행

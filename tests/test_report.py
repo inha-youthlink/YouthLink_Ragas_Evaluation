@@ -139,6 +139,33 @@ def test_render_lists_lowest_samples_first_with_pending_counts():
     assert "TimeoutError" in low
 
 
+def clarify_row(sample_id, reason):
+    unscored = {name: None for name in ("answer_relevancy", "reference_faithfulness", "answer_coverage")}
+    return sample_row(sample_id, None, answer="되묻기 문구", handler="clarify", clarify_reason=reason, **unscored)
+
+
+def test_render_counts_clarify_samples_apart_from_low_samples():
+    samples = [
+        sample_row("single-000001", Decimal("0.900")),
+        clarify_row("single-000002", "condition"),
+        clarify_row("single-000003", "policy"),
+    ]
+
+    text = render(report_data(samples=samples))
+
+    clarify = text.split("## 되묻기 응답 (채점 제외 2건)")[1].split("\n## ")[0]
+    assert "| 조건 되묻기 (condition) | 1 |" in clarify and "| 정책 되묻기 (policy) | 1 |" in clarify
+    assert "single-000002" in clarify and "single-000003" in clarify
+    low = text.split("## 점수 낮은 샘플")[1]
+    assert "single-000002" not in low and "single-000001" in low
+
+
+def test_render_without_clarify_has_no_clarify_section():
+    text = render(report_data())
+
+    assert "## 되묻기 응답" not in text
+
+
 def test_render_shows_answer_coverage_in_low_samples():
     samples = [sample_row("single-000001", Decimal("0.100"), answer_coverage=Decimal("1.000"))]
 

@@ -109,12 +109,16 @@ FINISH_RUN = sql.SQL(
     ),
 )
 
-# 재개 기준(PRD "평가 실행 순서"): answer IS NULL → 응답부터, 지표 전부 NULL → 채점부터
+# 되묻기 응답은 근거 없는 고정 문구라 채점하지 않는다 (PRD "되묻기 응답")
+CLARIFY_HANDLER = "clarify"
+
+# 재개 기준(PRD "평가 실행 순서"): answer IS NULL → 응답부터, 지표 전부 NULL → 채점부터 (되묻기 응답 제외)
 FIND_PENDING = sql.SQL(
     """
     SELECT sample_id, answer IS NULL AS need_answer
     FROM ragas_evaluation_samples
-    WHERE run_id = %(run_id)s AND (answer IS NULL OR ({all_null}))
+    WHERE run_id = %(run_id)s
+      AND (answer IS NULL OR ({all_null} AND metadata->>'handler' IS DISTINCT FROM %(clarify)s))
     ORDER BY id
 """
 ).format(all_null=sql.SQL(" AND ").join(sql.SQL("{} IS NULL").format(sql.Identifier(n)) for n in METRIC_NAMES))
@@ -277,7 +281,7 @@ def finish_run(conn: psycopg.Connection, run_id: UUID, status: FinalStatus) -> N
 
 def find_pending(conn: psycopg.Connection, run_id: UUID) -> Pending:
     with conn.cursor() as cur:
-        cur.execute(FIND_PENDING, {"run_id": run_id})
+        cur.execute(FIND_PENDING, {"run_id": run_id, "clarify": CLARIFY_HANDLER})
         rows = cur.fetchall()
     return Pending(
         need_answer=[sample_id for sample_id, need_answer in rows if need_answer],

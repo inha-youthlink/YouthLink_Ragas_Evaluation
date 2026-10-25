@@ -359,6 +359,16 @@ def test_sample_with_only_answer_coverage_is_not_pending(eval_conn, filled_run, 
 
 
 @pytest.mark.db
+def test_clarify_answer_is_not_pending_for_scores(eval_conn, filled_run, rag_payload):
+    clarify = rag_result(rag_payload).model_copy(update={"trace_details": {"handler": "clarify"}})
+    update_answer(eval_conn, filled_run, "single-000001", clarify)
+
+    pending = find_pending(eval_conn, filled_run)
+
+    assert "single-000001" not in pending.need_scores
+
+
+@pytest.mark.db
 def test_get_run_returns_resume_conditions(eval_conn, run_id):
     finished = insert_run(eval_conn, mode="offline", **{**RUN_FIELDS, "repeat_no": 2})
     finish_run(eval_conn, finished, "FAILED")

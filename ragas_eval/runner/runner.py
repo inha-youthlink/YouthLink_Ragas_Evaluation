@@ -239,6 +239,8 @@ async def _process(
             if mode == "rag":
                 _record_rag_settings(conn, run_id, result)
             conn.commit()
+            if _is_clarify(result):
+                return
             answer, contexts = result.answer, result.retrieved_contexts
         else:
             answer, chunks = stored
@@ -249,12 +251,17 @@ async def _process(
 
 
 def _retrieval_metrics(mode: Mode, sample: GoldenSample, result: RagResult) -> dict[str, Any] | None:
-    # baseline·offline은 검색을 하지 않아 계산하지 않는다. 입력은 update_answer가 metadata에 남기는 값과 같다
-    if mode != "rag":
+    # baseline·offline·되묻기는 검색을 하지 않아 계산하지 않는다. 입력은 update_answer가 metadata에 남기는 값과 같다
+    if mode != "rag" or _is_clarify(result):
         return None
     return retrieval.compute_retrieval_metrics(
         sample.policy_no, {"retrieved_chunks": result.retrieved_chunks, **result.trace_details}
     )
+
+
+def _is_clarify(result: RagResult) -> bool:
+    # 되묻기 응답은 RAGAS·검색 적중률에서 빼고 보고서에서 따로 센다 (PRD "되묻기 응답")
+    return result.trace_details.get("handler") == repository.CLARIFY_HANDLER
 
 
 def _record_rag_settings(conn: psycopg.Connection, run_id: UUID, result: RagResult) -> None:

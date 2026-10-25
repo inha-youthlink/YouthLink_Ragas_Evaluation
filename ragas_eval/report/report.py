@@ -31,6 +31,9 @@ RETRIEVAL_ROWS = (
 # 라우팅 보고서의 유형 표시 순서 (PRD "라우팅 평가")
 ROUTING_INTENTS = ("policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear")
 DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가")
+# 되묻기 이유 (RAG trace.clarify_reason). 프로필과 질문 내용이 맞으면 조건 되묻기는 0건이어야 한다
+CLARIFY_HANDLER = "clarify"
+CLARIFY_REASONS = (("condition", "조건 되묻기"), ("policy", "정책 되묻기"))
 
 SELECT_RUN = "SELECT * FROM ragas_evaluation_run WHERE run_id = %(run_id)s"
 
@@ -54,7 +57,9 @@ SELECT_SAMPLES = sql.SQL(
     """
     SELECT sample_id, policy_no, question, answer, {metrics}, latency_ms, metadata->'errors' AS errors,
            metadata->'retrieval' AS retrieval,
-           metadata->'routing' AS routing
+           metadata->'routing' AS routing,
+           metadata->>'handler' AS handler,
+           metadata->>'clarify_reason' AS clarify_reason
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s
     ORDER BY sample_id
@@ -116,6 +121,7 @@ def render(data: ReportData) -> str:
         _conditions(run),
         _averages(run),
         _retrieval(data.samples),
+        _clarify(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
         _low_samples(data.samples),
@@ -270,6 +276,32 @@ def _drop_cause(m: Mapping[str, Any]) -> str:
     return "판단 불가"
 
 
+def _is_clarify(sample: Mapping[str, Any]) -> bool:
+    return sample.get("handler") == CLARIFY_HANDLER
+
+
+def _clarify(samples: Sequence[Mapping[str, Any]]) -> str:
+    """PRD "되묻기 응답": 채점에서 뺀 되묻기 응답을 이유별로 세고 목록을 보인다. 없으면 생략."""
+    clarified = [s for s in samples if _is_clarify(s)]
+    if not clarified:
+        return ""
+    reasons = [s.get("clarify_reason") for s in clarified]
+    known = {code for code, _ in CLARIFY_REASONS}
+    counts = [[f"{label} ({code})", reasons.count(code)] for code, label in CLARIFY_REASONS]
+    counts.append(["이유 없음·기타", sum(1 for r in reasons if r not in known)])
+    rows = [
+        [s["sample_id"], s["policy_no"], _text(s["question"], QUESTION_MAX_CHARS), _text(s.get("clarify_reason"))]
+        for s in clarified
+    ]
+    return "\n\n".join(
+        [
+            f"## 되묻기 응답 (채점 제외 {len(clarified)}건)",
+            _table(["이유", "샘플 수"], counts),
+            _table(["sample_id", "policy_no", "질문", "이유"], rows),
+        ]
+    )
+
+
 def _mode_comparison(dataset_version: str, mode_averages: Sequence[Mapping[str, Any]]) -> str:
     title = f"## 모드별 비교 ({dataset_version}, 같은 채점 프롬프트의 완료된 run 평균)"
     if not mode_averages:
@@ -301,7 +333,7 @@ def _progress(samples: Sequence[Mapping[str, Any]]) -> str:
 
 def _low_samples(samples: Sequence[Mapping[str, Any]]) -> str:
     # 채점 실패(NULL)를 먼저, 그다음 factual_correctness 낮은 순
-    answered = [s for s in samples if s["answer"] is not None]
+    answered = [s for s in samples if s["answer"] is not None and not _is_clarify(s)]
     ranked = sorted(answered, key=lambda s: (s["factual_correctness"] is not None, s["factual_correctness"] or 0))
     headers = [
         "sample_id",

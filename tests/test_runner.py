@@ -267,6 +267,28 @@ def test_execute_skips_retrieval_metrics_without_search(conn, golden_record, mod
 
 
 @pytest.mark.db
+def test_execute_skips_scoring_clarify_answers_and_finishes(conn, golden_record):
+    samples = make_samples(golden_record, 2)
+    run_id = new_run(conn, samples, mode="rag")
+    recorder = Recorder()
+
+    async def answer(sample):
+        if sample.sample_id == "single-000002":
+            clarify = {"handler": "clarify", "clarify_reason": "condition"}
+            return rag_answer(sample, answer="되묻기 문구", retrieved_contexts=[], chunks=[], trace_details=clarify)
+        return rag_answer(sample)
+
+    outcome = asyncio.run(execute(conn, run_id, "rag", samples, Workers(answer, recorder.score)))
+
+    assert outcome == RunOutcome(run_id, "SUCCEEDED", 0, 0)
+    assert [sid for sid, _, _ in recorder.scored] == ["single-000001"]
+    row = fetch(conn, "SELECT * FROM ragas_evaluation_samples WHERE run_id = %s AND sample_id = %s", [run_id, "single-000002"])[0]
+    assert row["factual_correctness"] is None and "retrieval" not in row["metadata"]
+    run = run_row(conn, run_id)
+    assert (run["sample_count"], run["avg_factual_correctness"]) == (2, Decimal("1.000"))
+
+
+@pytest.mark.db
 def test_answer_failure_leaves_run_running(conn, golden_record, caplog):
     samples = make_samples(golden_record, 3)
     run_id = new_run(conn, samples)
