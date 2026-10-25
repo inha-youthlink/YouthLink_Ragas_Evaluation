@@ -19,6 +19,9 @@ cp .env.example .env
 psql -d youthlink -f db/ragas_schema.sql
 ```
 
+- 여러 번 적용해도 안전하다 (`IF NOT EXISTS`, 제약 재생성). 이미 테이블이 있는 DB도 다시 적용해야 새 컬럼·값이 반영된다
+- 라우팅 평가(`route`)는 `mode = 'routing'`으로 저장하므로, 이 값이 추가된 스키마를 적용한 DB에서만 실행할 수 있다
+
 ## 실행
 
 ```bash
@@ -37,7 +40,13 @@ python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3
 
 # 응답 실패·중단으로 RUNNING에 남은 run을 미완료 샘플만 이어서 실행 (같은 모드 옵션 함께 지정)
 python -m ragas_eval run --golden datasets/golden_v1.jsonl --resume <run_id>
+
+# 라우팅 평가: 대화 없는 질문 90건을 RAG에 보내 질문 유형 분류가 맞는지 채점 (채점 LLM 없음, RAG 호출 비용만)
+python -m ragas_eval route --routing datasets/routing_v1.jsonl
 ```
+
+- `run`(rag 모드)은 답변 품질과 함께 검색 적중률(카드·후보·검색·1차 필터 적중, Hit@k, 역순위)을 계산해 저장한다. 추가 비용은 없다
+- `run`·`route`는 RAG와 LLM을 실제로 호출해 비용이 든다. `route`는 재개가 없어서, 미응답이 남으면 새로 다시 실행한다
 
 `generate` 옵션
 
@@ -84,11 +93,51 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 | 3 | `repository/repository.py` | run 행 생성, 샘플 행 INSERT | → `ragas_evaluation_run`, `ragas_evaluation_samples` |
 | 4 | `rag_client/rag_client.py` | 질문마다 RAG `/internal/pipeline` 호출 (rag 모드) | 질문 → 답변·청크·지연시간·토큰 |
 | 4' | `baseline_client/baseline_client.py` | RAG 없이 LLM 직접 호출 (baseline 모드) | 질문 → 답변 |
-| 5 | `repository/repository.py` | 답변·청크 저장 | → `samples.answer`, `contexts` |
-| 6 | `scorer/scorer.py` | 지표 6개 채점, 실패 지표는 NULL + 에러 기록 (LLM 비용) | 질문·답변·청크·정답 → 점수 |
+| 5 | `retrieval/retrieval.py` | 정답 정책이 1차 필터 → 검색 → 후보 → 카드 중 어디까지 남았는지 계산 (rag 모드, LLM 없음) | RAG trace → 검색 적중률 |
+| 5' | `repository/repository.py` | 답변·청크·검색 적중률 저장 | → `samples.answer`, `contexts`, `metadata.retrieval` |
+| 6 | `scorer/scorer.py` | 지표 7개 채점, 실패 지표는 NULL + 에러 기록 (LLM 비용) | 질문·답변·청크·정답 → 점수 |
 | 7 | `repository/repository.py` | 점수 저장 | → `samples` 지표 컬럼 |
 | 8 | `repository/repository.py` | 평균 집계 후 run 종료 (SUCCEEDED/FAILED) | → `run.avg_*`, `status` |
 | — | `runner/runner.py` | 3~8 순서 조율, 반복, 중단된 run 재개 | |
+
+### 4. 라우팅 평가 (K8s Job, `route`)
+
+데이터셋은 `datasets/routing_vN.jsonl`(질문, 기대 유형 7종 중 1~3개)이다. 초안 `routing_candidates.jsonl`을 검수해 확정하고, 확정본은 수정하지 않는다.
+
+| 순서 | 파일 | 역할 | 입력 → 출력 |
+|---|---|---|---|
+| 1 | `dataset/dataset.py` | `reviewed` 샘플만 로드, 유형 값·개수 검사 | `routing_vN.jsonl` → 샘플 |
+| 2 | `repository/repository.py` | run(`mode = 'routing'`)과 샘플 행 INSERT | → `ragas_evaluation_run`, `ragas_evaluation_samples` |
+| 3 | `rag_client/rag_client.py` | 질문만 RAG에 보냄 (프로필·앞 대화 없음) | 질문 → 답변·질문 분석 결과 |
+| 4 | `routing/routing.py` | 응답 유형 묶음이 기대 유형과 같은지 채점 (순서 무관, 분석 실패는 0) | 분석 결과 → `intent_correct` |
+| 5 | `repository/repository.py` | 샘플 채점 저장, 모두 응답했으면 정확도·유형별·혼동 행렬 집계 후 종료 | → `samples.metadata.routing`, `run.metadata.routing` |
+
+## 배포 (K8s Job)
+
+`Dockerfile`은 `ragas_eval/`과 `datasets/`만 이미지에 넣는다 (`.env`는 `.dockerignore`로 차단). 코드나 데이터셋을 바꾸면 이미지를 다시 빌드한다.
+
+```bash
+docker build -t youthlink/ragas-eval:latest .
+
+# 비밀값은 Secret으로만 넣는다 (파일에 적지 않는다)
+kubectl create secret generic ragas-eval-secrets \
+  --from-literal=OPENAI_API_KEY='...' \
+  --from-literal=DATABASE_URL='...'
+
+# Job은 이름이 같으면 지우고 다시 만든다
+kubectl delete job ragas-eval --ignore-not-found
+kubectl apply -f k8s/ragas-eval-job.yaml
+kubectl logs -f job/ragas-eval
+```
+
+`k8s/ragas-eval-job.yaml`에서 배포 환경에 맞게 채울 값은 다음과 같다.
+
+| 값 | 위치 |
+| --- | --- |
+| 이미지 주소 (ECR 계정 ID·리전) | Job `image` |
+| `RAG_BASE_URL` (RAG Service 주소) | ConfigMap `ragas-eval-config` |
+| `OPENAI_BASE_URL` (bedrock 모델을 호출하는 프록시 주소) | ConfigMap 주석 해제 |
+| 실행 명령 (`run`, `run --baseline`, `route` 등) | Job `args` |
 
 ## 결과 확인
 
@@ -98,6 +147,12 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 # results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md 생성 (LLM 비용 없음)
 python -m ragas_eval report --run <run_id>
 ```
+
+| run 종류 | 보고서 내용 |
+| --- | --- |
+| `rag` | 지표 평균, 검색 적중률(단계별 평균, 정답 정책이 빠진 단계별 샘플 수), 모드별 비교, 점수 낮은 샘플 |
+| `baseline`·`offline` | 지표 평균, 모드별 비교, 점수 낮은 샘플 |
+| `routing` | 정확도·분석 실패율, 유형별 정확도, 혼동 행렬, 틀린 샘플(기대·응답 유형) |
 
 ```sql
 -- 실행별 성적표
@@ -124,6 +179,23 @@ FROM ragas_evaluation_samples
 WHERE run_id = '<run_id>'
 ORDER BY factual_correctness NULLS FIRST
 LIMIT 20;
+
+-- 한 rag run의 검색 적중률 평균 (NULL은 판단할 수 없는 샘플이라 평균에서 빠짐)
+SELECT AVG((metadata->'retrieval'->>'card_hit')::int)        AS card_hit,
+       AVG((metadata->'retrieval'->>'retrieval_hit')::int)   AS retrieval_hit,
+       AVG((metadata->'retrieval'->>'reciprocal_rank')::float) AS mrr
+FROM ragas_evaluation_samples
+WHERE run_id = '<run_id>';
+
+-- 라우팅 run 정확도와 틀린 샘플
+SELECT metadata->'routing'->>'accuracy' AS accuracy, metadata->'routing'->>'fallback_rate' AS fallback_rate
+FROM ragas_evaluation_run
+WHERE run_id = '<run_id>';
+
+SELECT sample_id, question, metadata->'routing'->'expected_intent' AS expected,
+       metadata->'routing'->'predicted_intent' AS predicted
+FROM ragas_evaluation_samples
+WHERE run_id = '<run_id>' AND (metadata->'routing'->>'intent_correct')::int = 0;
 ```
 
 ## 테스트
@@ -131,3 +203,6 @@ LIMIT 20;
 ```bash
 pytest
 ```
+
+- 실제 OpenAI·RAG는 호출하지 않는다 (mock)
+- DB 통합 테스트(`db` 마커)는 `TEST_DATABASE_URL`이 있을 때만 돈다. 로컬 주소이고 DB 이름에 `test`가 들어간 임시 DB만 허용한다 (예: `postgresql://postgres@localhost:55432/ragas_test`). 없으면 건너뛴다
