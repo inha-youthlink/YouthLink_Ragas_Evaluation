@@ -173,6 +173,26 @@ def test_baseline_does_not_need_retrieval_metric_objects():
     assert result.errors == {}
 
 
+def test_answer_without_search_skips_context_metrics_without_errors():
+    metrics = fake_metrics()
+
+    result = score(metrics, retrieved_contexts=None)
+
+    for name in RETRIEVAL_METRICS:
+        metrics[name].ascore.assert_not_awaited()
+        assert getattr(result, name) is None
+    assert (result.answer_relevancy, result.factual_correctness, result.answer_coverage) == (0.5, 0.5, 0.5)
+    assert result.errors == {}
+
+
+def test_empty_search_result_is_still_scored_on_context_metrics():
+    metrics = fake_metrics()
+
+    score(metrics, retrieved_contexts=[])
+
+    metrics["context_recall"].ascore.assert_awaited_once_with(user_input=QUESTION, retrieved_contexts=[], reference=REFERENCE)
+
+
 def test_offline_scores_all_seven_metrics():
     metrics = fake_metrics()
 

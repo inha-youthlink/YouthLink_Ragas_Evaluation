@@ -124,6 +124,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | 실제 후보 수 | 6 (`CARD_CANDIDATES` 기본값). 카드는 그중 LLM이 최대 3개 |
 | debug 응답에 `filtered_policy_nos` | 추가됨. 필터 없음 null, 통과 없음 `[]` |
 | 되묻기 구분 | `trace.handler = "clarify"`, `trace.clarify_reason` = `condition`(조건 되묻기)·`policy`(정책 고르기). 둘 다 `metadata`에 저장 |
+| 짧은 답변 | `trace.handler = "short"`는 검색하지 않아 검색 적중률을 계산하지 않음 (`docs/RAGAS_PRD.md` "짧은 답변") |
 
 ## 구현 체크리스트
 

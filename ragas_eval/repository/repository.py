@@ -111,6 +111,8 @@ FINISH_RUN = sql.SQL(
 
 # 되묻기 응답은 근거 없는 고정 문구라 채점하지 않는다 (PRD "되묻기 응답")
 CLARIFY_HANDLER = "clarify"
+# 인사·범위 밖으로 분류돼 근거 없이 답한 응답. 검색 결과로 재는 지표를 빼고 채점한다 (PRD "짧은 답변")
+SHORT_HANDLER = "short"
 
 # 재개 기준(PRD "평가 실행 순서"): answer IS NULL → 응답부터, 지표 전부 NULL → 채점부터 (되묻기 응답 제외)
 FIND_PENDING = sql.SQL(
@@ -134,7 +136,7 @@ SELECT_RUN = """
 
 # 재개 시 채점만 남은 샘플은 저장된 응답을 다시 쓴다 (RAG·baseline 재호출 비용 방지)
 SELECT_ANSWERS = """
-    SELECT sample_id, answer, contexts
+    SELECT sample_id, answer, contexts, metadata->>'handler' AS handler
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s AND sample_id = ANY(%(sample_ids)s) AND answer IS NOT NULL
 """
@@ -149,6 +151,12 @@ SELECT_SAMPLE_TEXTS = """
 
 class RunNotWritableError(RuntimeError):
     """run이 없거나 RUNNING이 아니거나(종료된 이전 run) 대상 샘플이 없어 UPDATE되지 않음."""
+
+
+class StoredAnswer(NamedTuple):
+    answer: str
+    contexts: list[dict[str, Any]]
+    handler: str | None
 
 
 class Pending(NamedTuple):
@@ -296,12 +304,10 @@ def get_run(conn: psycopg.Connection, run_id: UUID) -> RunInfo | None:
     return RunInfo(*row) if row else None
 
 
-def load_answers(
-    conn: psycopg.Connection, run_id: UUID, sample_ids: Iterable[str]
-) -> dict[str, tuple[str, list[dict[str, Any]]]]:
+def load_answers(conn: psycopg.Connection, run_id: UUID, sample_ids: Iterable[str]) -> dict[str, StoredAnswer]:
     with conn.cursor() as cur:
         cur.execute(SELECT_ANSWERS, {"run_id": run_id, "sample_ids": list(sample_ids)})
-        return {sample_id: (answer, contexts) for sample_id, answer, contexts in cur.fetchall()}
+        return {sample_id: StoredAnswer(*rest) for sample_id, *rest in cur.fetchall()}
 
 
 def load_sample_texts(conn: psycopg.Connection, run_id: UUID, sample_ids: Iterable[str]) -> dict[str, tuple[str, str]]:

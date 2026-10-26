@@ -290,6 +290,37 @@ def test_execute_skips_scoring_clarify_answers_and_finishes(conn, golden_record)
 
 
 @pytest.mark.db
+def test_short_answer_is_scored_without_contexts_and_retrieval(conn, golden_record):
+    samples = make_samples(golden_record, 1)
+    run_id = new_run(conn, samples, mode="rag")
+    recorder = Recorder()
+
+    async def answer(sample):
+        return rag_answer(sample, answer="인사 답변", retrieved_contexts=[], chunks=[], trace_details={"handler": "short"})
+
+    outcome = asyncio.run(execute(conn, run_id, "rag", samples, Workers(answer, recorder.score)))
+
+    assert outcome.status == "SUCCEEDED"
+    assert recorder.scored == [("single-000001", "인사 답변", None)]
+    row = fetch(conn, "SELECT * FROM ragas_evaluation_samples WHERE run_id = %s", [run_id])[0]
+    assert "retrieval" not in row["metadata"] and row["metadata"]["handler"] == "short"
+
+
+@pytest.mark.db
+def test_resume_scores_stored_short_answer_without_contexts(conn, golden_record):
+    samples = make_samples(golden_record, 1)
+    run_id = new_run(conn, samples)
+    short = rag_answer(samples["single-000001"], answer="인사 답변", chunks=[], trace_details={"handler": "short"})
+    update_answer(conn, run_id, "single-000001", short)
+    conn.commit()
+    fake = Recorder()
+
+    asyncio.run(execute(conn, run_id, "rag", samples, fake.workers()))
+
+    assert fake.scored == [("single-000001", "인사 답변", None)]
+
+
+@pytest.mark.db
 def test_answer_failure_leaves_run_running(conn, golden_record, caplog):
     samples = make_samples(golden_record, 3)
     run_id = new_run(conn, samples)

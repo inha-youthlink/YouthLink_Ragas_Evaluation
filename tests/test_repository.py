@@ -387,7 +387,17 @@ def test_load_answers_returns_stored_answer_and_chunks(eval_conn, filled_run, ra
     answers = load_answers(eval_conn, filled_run, ["single-000001", "single-000002"])
 
     contexts = [{"content": c} for c in rag_payload["trace"]["contexts"]]
-    assert answers == {"single-000001": (rag_payload["answer"], contexts)}
+    assert answers == {"single-000001": (rag_payload["answer"], contexts, None)}
+
+
+@pytest.mark.db
+def test_load_answers_returns_stored_handler(eval_conn, filled_run, rag_payload):
+    short = rag_result(rag_payload).model_copy(update={"trace_details": {"handler": "short"}})
+    update_answer(eval_conn, filled_run, "single-000001", short)
+
+    answers = load_answers(eval_conn, filled_run, ["single-000001"])
+
+    assert answers["single-000001"].handler == "short"
 
 
 @pytest.mark.db

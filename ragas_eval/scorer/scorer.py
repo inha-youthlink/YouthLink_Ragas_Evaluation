@@ -56,6 +56,8 @@ METRICS_BY_MODE = MappingProxyType(
     }
 )
 MODES = tuple(METRICS_BY_MODE)
+# 검색 결과로 재는 지표. RAG가 근거 없이 답한 응답(짧은 답변)에는 계산하지 않는다
+CONTEXT_METRICS = ("context_precision", "context_recall", "faithfulness")
 # ragas 0.4.3은 모델 버전을 정수로만 읽어 gpt-5.6-terra 같은 소수점 버전을 GPT-5 이상으로 보지 못한다.
 # 그러면 지원하지 않는 max_tokens를 보내 400이 나므로 GPT-5 이상은 직접 추론 모델 인자로 맞춘다
 GPT_VERSION = re.compile(r"gpt-(\d+)(?:\.\d+)?(?:-|$)")
@@ -186,14 +188,15 @@ async def score_sample(
     *,
     question: str,
     answer: str,
-    retrieved_contexts: list[str],
+    retrieved_contexts: list[str] | None,
     reference: str,
     reference_contexts: list[str],
     mode: Mode = "rag",
 ) -> ScoreResult:
+    """retrieved_contexts가 None이면 검색하지 않은 응답이라 CONTEXT_METRICS를 빼고 채점한다 ([]은 검색 결과 0건)."""
     if mode not in METRICS_BY_MODE:
         raise ValueError(f"알 수 없는 mode: {mode!r} (허용: {sorted(METRICS_BY_MODE)})")
-    names = METRICS_BY_MODE[mode]
+    names = tuple(n for n in METRICS_BY_MODE[mode] if retrieved_contexts is not None or n not in CONTEXT_METRICS)
     missing = [name for name in names if name not in metrics]
     if missing:
         raise ValueError(f"지표 객체 누락: {missing}")

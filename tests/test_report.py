@@ -166,6 +166,23 @@ def test_render_without_clarify_has_no_clarify_section():
     assert "## 되묻기 응답" not in text
 
 
+def test_render_lists_short_answers_and_keeps_them_in_low_samples():
+    samples = [
+        sample_row("single-000001", Decimal("0.900")),
+        sample_row("single-000002", Decimal("0.100"), answer="인사 답변", handler="short"),
+    ]
+
+    text = render(report_data(samples=samples))
+
+    short = text.split("## 짧은 답변 (인사·범위 밖으로 분류, 검색 지표 제외 1건)")[1].split("\n## ")[0]
+    assert "single-000002" in short and "single-000001" not in short
+    assert "single-000002" in text.split("## 점수 낮은 샘플")[1]
+
+
+def test_render_without_short_answers_has_no_short_section():
+    assert "## 짧은 답변" not in render(report_data())
+
+
 def test_render_shows_answer_coverage_in_low_samples():
     samples = [sample_row("single-000001", Decimal("0.100"), answer_coverage=Decimal("1.000"))]
 

@@ -217,6 +217,17 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 
 프로필이 질문 내용과 맞게 만들어진 데이터셋이라면 조건 되묻기는 0건이어야 한다. 나오면 프로필(데이터셋) 또는 RAG의 조건 추출을 확인한다.
 
+### 짧은 답변
+
+질문 분석이 인사·범위 밖으로 분류하면 RAG는 검색 없이 근거 없는 짧은 답변을 낸다 (`trace.handler = "short"`, `contexts` = `[]`). golden은 정책 질문뿐이라 나오면 분석 오분류다.
+
+| 항목 | 처리 |
+| --- | --- |
+| 채점 | 답변 지표(`answer_relevancy`·`factual_correctness`·`reference_faithfulness`·`answer_coverage`)만. 검색 결과로 재는 `context_precision`·`context_recall`·`faithfulness`는 NULL, `metadata.errors`에 남기지 않음. 검색 결과 0건(`contexts` = `[]`, 검색 핸들러)은 그대로 채점 |
+| 검색 적중률 | 계산하지 않음 (검색하지 않음) |
+| 재개 | 저장된 `metadata.handler`로 같은 기준 적용 |
+| 보고서 | "짧은 답변" 섹션에 목록. 답변 지표가 있어 점수 낮은 샘플에는 포함 |
+
 ## 오프라인 모드 (`run --offline`)
 
 | 항목 | 값 |
@@ -254,7 +265,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
 | 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
-| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
+| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
 | 비용 | LLM 호출 없음 |
@@ -345,6 +356,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 - [ ] 6-6. golden_v2 `run --offline`으로 커버리지 1 근접 확인 (채점 비용, 사용자 확인 후)
 - [x] 7-1. 되묻기 응답 채점 제외 (`runner`), 재개 대상 제외 (`repository`), 보고서 섹션 (`report`) + 테스트
 - [x] 7-2. 7-1 DB 통합 테스트를 임시 PostgreSQL에서 실행
+- [x] 7-3. 짧은 답변(`handler = "short"`) 검색 지표·검색 적중률 제외 (`scorer`·`runner`, 재개 포함), 보고서 섹션 + 테스트 (임시 PostgreSQL)
 - [x] 8-1. `GoldenProfile`: golden `profile`을 RAG `Profile` 필드로 검사 (모르는 키·형식 오류 로드 실패), RAG 요청에는 채운 필드만 + 테스트
 - [x] 8-2. `profile` 명령: 정답 정책의 시도·나이로 프로필 채운 후보 생성, 검수 표시 + 테스트
 - [ ] 8-3. golden_v1 프로필 후보 검수 → `golden_v2.jsonl` 확정 (사용자 승인 후)

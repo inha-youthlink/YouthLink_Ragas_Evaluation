@@ -34,6 +34,8 @@ DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필�
 # 되묻기 이유 (RAG trace.clarify_reason). 프로필과 질문 내용이 맞으면 조건 되묻기는 0건이어야 한다
 CLARIFY_HANDLER = "clarify"
 CLARIFY_REASONS = (("condition", "조건 되묻기"), ("policy", "정책 되묻기"))
+# 인사·범위 밖으로 분류돼 근거 없이 답한 응답. golden은 정책 질문뿐이라 나오면 질문 분석이 잘못 분류한 것
+SHORT_HANDLER = "short"
 
 SELECT_RUN = "SELECT * FROM ragas_evaluation_run WHERE run_id = %(run_id)s"
 
@@ -122,6 +124,7 @@ def render(data: ReportData) -> str:
         _averages(run),
         _retrieval(data.samples),
         _clarify(data.samples),
+        _short(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
         _low_samples(data.samples),
@@ -300,6 +303,16 @@ def _clarify(samples: Sequence[Mapping[str, Any]]) -> str:
             _table(["sample_id", "policy_no", "질문", "이유"], rows),
         ]
     )
+
+
+def _short(samples: Sequence[Mapping[str, Any]]) -> str:
+    """PRD "짧은 답변": 근거 없이 답해 검색 지표를 빼고 채점한 응답 목록. 없으면 생략."""
+    short = [s for s in samples if s.get("handler") == SHORT_HANDLER]
+    if not short:
+        return ""
+    rows = [[s["sample_id"], s["policy_no"], _text(s["question"], QUESTION_MAX_CHARS)] for s in short]
+    title = f"## 짧은 답변 (인사·범위 밖으로 분류, 검색 지표 제외 {len(short)}건)"
+    return f"{title}\n\n" + _table(["sample_id", "policy_no", "질문"], rows)
 
 
 def _mode_comparison(dataset_version: str, mode_averages: Sequence[Mapping[str, Any]]) -> str:

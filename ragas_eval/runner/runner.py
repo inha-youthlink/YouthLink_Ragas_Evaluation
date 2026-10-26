@@ -45,7 +45,8 @@ NO_MODEL = "none"
 
 Answerer = Callable[[GoldenSample], Awaitable[RagResult]]
 RoutingAnswerer = Callable[[RoutingSample], Awaitable[RagResult]]
-Scorer = Callable[[GoldenSample, str, list[str]], Awaitable[ScoreResult]]
+# contexts가 None이면 검색하지 않은 응답 (scorer.score_sample)
+Scorer = Callable[[GoldenSample, str, list[str] | None], Awaitable[ScoreResult]]
 
 
 class Workers(NamedTuple):
@@ -223,7 +224,7 @@ async def _process(
     run_id: UUID,
     mode: Mode,
     sample: GoldenSample,
-    stored: tuple[str, list[dict[str, Any]]] | None,
+    stored: repository.StoredAnswer | None,
     workers: Workers,
     semaphore: asyncio.Semaphore,
 ) -> None:
@@ -241,18 +242,17 @@ async def _process(
             conn.commit()
             if _is_clarify(result):
                 return
-            answer, contexts = result.answer, result.retrieved_contexts
+            answer, handler, contexts = result.answer, result.trace_details.get("handler"), result.retrieved_contexts
         else:
-            answer, chunks = stored
-            contexts = contexts_of(chunks)
-        score = await workers.score(sample, answer, contexts)
+            answer, handler, contexts = stored.answer, stored.handler, contexts_of(stored.contexts)
+        score = await workers.score(sample, answer, None if handler == repository.SHORT_HANDLER else contexts)
         repository.update_scores(conn, run_id, sample.sample_id, score)
         conn.commit()
 
 
 def _retrieval_metrics(mode: Mode, sample: GoldenSample, result: RagResult) -> dict[str, Any] | None:
-    # baseline·offline·되묻기는 검색을 하지 않아 계산하지 않는다. 입력은 update_answer가 metadata에 남기는 값과 같다
-    if mode != "rag" or _is_clarify(result):
+    # baseline·offline·되묻기·짧은 답변은 검색을 하지 않아 계산하지 않는다. 입력은 update_answer가 metadata에 남기는 값과 같다
+    if mode != "rag" or _is_clarify(result) or result.trace_details.get("handler") == repository.SHORT_HANDLER:
         return None
     return retrieval.compute_retrieval_metrics(
         sample.policy_no, {"retrieved_chunks": result.retrieved_chunks, **result.trace_details}
