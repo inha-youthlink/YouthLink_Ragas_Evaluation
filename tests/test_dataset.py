@@ -43,7 +43,30 @@ def test_missing_reviewed_and_profile_use_defaults(golden_record):
     sample = GoldenSample.model_validate(record)
 
     assert sample.reviewed is False
-    assert sample.profile == {}
+    assert sample.profile.to_request() == {}
+
+
+def test_profile_sends_only_filled_fields(golden_record):
+    record = {**golden_record, "profile": {"age": 25, "region_code": "11000", "job_code": None}}
+
+    sample = GoldenSample.model_validate(record)
+
+    assert sample.profile.to_request() == {"age": 25, "region_code": "11000"}
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        {"region": "11000"},
+        {"region_code": "11"},
+        {"region_code": "서울"},
+        {"age": -1},
+        {"annual_income": -1},
+    ],
+)
+def test_invalid_profile_fails(golden_record, profile):
+    with pytest.raises(ValidationError):
+        GoldenSample.model_validate({**golden_record, "profile": profile})
 
 
 def test_null_source_updated_at_is_allowed(golden_record):

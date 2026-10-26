@@ -22,6 +22,30 @@ SELECT_SOURCE_UPDATED_AT = """
 """
 
 
+class GoldenProfile(BaseModel):
+    """RAG에 보내는 프로필 (YouthLink_RAG app/schemas/pipeline.py Profile).
+
+    RAG는 모르는 키를 무시해 오타가 필터 없는 검색으로 조용히 바뀌므로 여기서 막는다.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    age: int | None = Field(default=None, ge=0)
+    gender: str | None = None
+    # 법정 시군구 코드 5자리. 시도 전체는 끝 3자리 000
+    region_code: str | None = Field(default=None, pattern=r"^\d{5}$")
+    marriage_status_code: str | None = None
+    # 원 단위 (공개 API의 만 원 단위와 다름)
+    annual_income: int | None = Field(default=None, ge=0)
+    major_code: str | None = None
+    job_code: str | None = None
+    school_code: str | None = None
+    special_target_code: str | None = None
+
+    def to_request(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
 class GoldenSample(BaseModel):
     """golden jsonl 한 줄. 길이 제한은 ragas_evaluation_samples 컬럼과 맞춘다."""
 
@@ -33,7 +57,7 @@ class GoldenSample(BaseModel):
     ground_truth: str = Field(min_length=1)
     reference_contexts: list[str] = Field(min_length=1)
     synthesizer_name: str
-    profile: dict[str, Any] = Field(default_factory=dict)
+    profile: GoldenProfile = Field(default_factory=GoldenProfile)
     source_updated_at: AwareDatetime | None
     reviewed: bool = False
 

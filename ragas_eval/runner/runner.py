@@ -463,7 +463,7 @@ async def _routing_answerer(settings: Settings) -> AsyncIterator[RoutingAnswerer
 async def call_rag_with_retry(
     http: httpx.AsyncClient, sample: GoldenSample, delay_seconds: float = RAG_RETRY_DELAY_SECONDS
 ) -> RagResult:
-    return await _call_with_retry(http, sample.question, sample.profile, delay_seconds)
+    return await _call_with_retry(http, sample.question, sample.profile.to_request(), delay_seconds)
 
 
 async def _call_with_retry(

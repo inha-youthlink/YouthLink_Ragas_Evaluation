@@ -1,5 +1,6 @@
 # 평가 실행 순서·모드·재개·실패 처리 테스트 (응답·채점은 가짜 함수, DB는 임시 PostgreSQL)
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -548,6 +549,21 @@ def test_rag_call_gives_up_after_retries_or_on_client_error(golden_record, rag_p
         asyncio.run(runner.call_rag_with_retry(http, GoldenSample.model_validate(golden_record), 0))
 
     assert len(calls) == expected_calls
+
+
+def test_rag_call_sends_only_filled_profile_fields(golden_record, rag_payload):
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=rag_payload)
+
+    http = httpx.AsyncClient(base_url="http://rag.test", transport=httpx.MockTransport(handler))
+    sample = GoldenSample.model_validate({**golden_record, "profile": {"age": 25, "region_code": "11000"}})
+
+    asyncio.run(runner.call_rag_with_retry(http, sample, 0))
+
+    assert bodies[0]["profile"] == {"age": 25, "region_code": "11000"}
 
 
 def test_rag_call_does_not_retry_contract_violation(golden_record, rag_payload):

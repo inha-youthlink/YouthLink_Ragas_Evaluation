@@ -63,7 +63,7 @@
 | `ground_truth` | str | `reference` |
 | `reference_contexts` | list[str] | `reference_contexts` |
 | `synthesizer_name` | str | `synthesizer_name` |
-| `profile` | object | `{}` |
+| `profile` | object | 생성 시 `{}`, `profile` 명령으로 채움 ("프로필 채우기"). 키는 RAG `Profile` 필드만 허용 (`age`, `gender`, `region_code` 5자리, `marriage_status_code`, `annual_income` 원 단위, `major_code`, `job_code`, `school_code`, `special_target_code`). 모르는 키·형식 오류는 로드 실패, 빈 값은 RAG 요청에서 뺌 |
 | `source_updated_at` | str (ISO 8601) | `Document.metadata` |
 | `reviewed` | bool | 검수 |
 
