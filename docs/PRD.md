@@ -84,11 +84,12 @@
 | 경로 | 역할 |
 | --- | --- |
 | `ragas_eval/__main__.py` | 진입점 |
-| `ragas_eval/cli.py` | `generate`, `run`, `route`, `report` |
+| `ragas_eval/cli.py` | `generate`, `profile`, `run`, `route`, `report` |
 | `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
 | `ragas_eval/policy_source/policy_source.py` | `policy` → `Document` |
 | `ragas_eval/generate/generate.py` | `TestsetGenerator` → `policy_no` 복원 → `golden_candidates.jsonl` |
-| `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample`·`RoutingSample` 타입 |
+| `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample`·`GoldenProfile`·`RoutingSample` 타입 |
+| `ragas_eval/profile/profile.py` | golden 샘플에 정답 정책의 시도·나이로 프로필 채운 후보 생성 (`docs/RAGAS_PRD.md` "프로필 채우기") |
 | `ragas_eval/rag_client/rag_client.py` | RAG 호출, `RagResult` 타입 |
 | `ragas_eval/baseline_client/baseline_client.py` | LLM 직접 호출 → `RagResult` (`retrieved_contexts = []`) |
 | `ragas_eval/scorer/scorer.py` | 모드별 지표 `ascore`, `ScoreResult` 타입 |
@@ -106,6 +107,7 @@
 
 - `ragas_eval`: 프로젝트 자체 패키지 (RAGAS 기본 명령어 아님)
 - `python -m ragas_eval generate --testset-size 100 --out datasets/golden_candidates.jsonl`
+- `python -m ragas_eval profile --golden datasets/golden_v1.jsonl --out datasets/golden_profile_candidates.jsonl`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --repeat 3`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --offline`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3`

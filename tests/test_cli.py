@@ -31,6 +31,16 @@ def test_generate_rejects_non_positive_policy_limit(value):
         build_parser().parse_args(["generate", "--policy-limit", value])
 
 
+def test_profile_requires_golden_and_uses_default_out():
+    args = build_parser().parse_args(["profile", "--golden", "datasets/golden_v1.jsonl"])
+
+    assert args.command == "profile"
+    assert args.golden == "datasets/golden_v1.jsonl"
+    assert args.out == "datasets/golden_profile_candidates.jsonl"
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["profile"])
+
+
 def test_run_parses_golden_and_repeat():
     args = build_parser().parse_args(["run", "--golden", "datasets/golden_v1.jsonl", "--repeat", "3"])
 

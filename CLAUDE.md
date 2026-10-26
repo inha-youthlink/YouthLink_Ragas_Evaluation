@@ -8,12 +8,13 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 
 - Python 3.12, `ragas` 0.4.x, `langchain-core` 1.x, `langchain-community<0.4`, `psycopg` 3, `httpx`, `pydantic-settings`, `pytest`
 - 지표는 v0.4 API(`ragas.metrics.collections`, `await metric.ascore(...)`)를 쓴다.
-- 패키지는 `ragas_eval/`, 진입점은 `python -m ragas_eval {generate|run|route|report}`이다.
+- 패키지는 `ragas_eval/`, 진입점은 `python -m ragas_eval {generate|profile|run|route|report}`이다.
 - 모듈은 `ragas_eval/<모듈>/<모듈>.py` 폴더 단위로 두고 역할은 고정한다. import는 `from ragas_eval.<모듈> import <모듈>`.
   - `config.py`: 환경변수 (최상위)
   - `policy_source/`: `policy` → `Document`
   - `generate/`: `TestsetGenerator` → 후보 jsonl
   - `dataset/`: golden·routing jsonl 로드·검사
+  - `profile/`: golden 샘플에 정답 정책의 시도·나이로 프로필 채우기
   - `rag_client/`: RAG 호출
   - `baseline_client/`: RAG 없이 LLM 직접 호출 (`--baseline`)
   - `scorer/`: 채점

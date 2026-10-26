@@ -1,9 +1,10 @@
-# generate, run, route, report 서브커맨드를 정의하는 CLI
+# generate, profile, run, route, report 서브커맨드를 정의하는 CLI
 import argparse
 from collections.abc import Sequence
 from uuid import UUID
 
 from ragas_eval.generate import generate
+from ragas_eval.profile import profile
 from ragas_eval.report import report
 from ragas_eval.runner import runner
 
@@ -25,6 +26,10 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--policy-limit", type=positive_int, default=None, help="대상 정책 중 고정 시드로 N건만 뽑아 생성 (분석 비용 제한)"
     )
+
+    profile_parser = sub.add_parser("profile", help="golden 샘플에 정답 정책의 시도·나이로 프로필을 채운 후보 생성")
+    profile_parser.add_argument("--golden", required=True)
+    profile_parser.add_argument("--out", default="datasets/golden_profile_candidates.jsonl")
 
     run_parser = sub.add_parser("run", help="확정 데이터셋으로 평가 실행")
     run_parser.add_argument("--golden", required=True)
@@ -50,6 +55,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "generate":
         summary = generate.generate(testset_size=args.testset_size, out_path=args.out, policy_limit=args.policy_limit)
         print(f"후보 {summary.written}건 저장, 정책 매칭 실패·빈 값 {summary.dropped}건 제외: {args.out}")
+    elif args.command == "profile":
+        summary = profile.profile(args.golden, args.out)
+        print(f"후보 {summary.written}건 저장, 검수 필요 {len(summary.flagged)}건 (reviewed=false): {args.out}")
+        for flagged in summary.flagged:
+            print(f"- {flagged.sample.sample_id}: {' / '.join(flagged.reasons)}")
     elif args.command == "run":
         outcomes = runner.run(
             golden_path=args.golden,
