@@ -7,6 +7,7 @@ __pycache__/
 .pytest_cache/
 datasets/golden_candidates.jsonl
 datasets/golden_profile_candidates.jsonl
+datasets/routing_candidates.jsonl
 # 정책 분석(지식 그래프) 캐시
 datasets/.cache/
 
