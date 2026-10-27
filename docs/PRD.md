@@ -107,7 +107,7 @@
 
 - `ragas_eval`: 프로젝트 자체 패키지 (RAGAS 기본 명령어 아님)
 - `python -m ragas_eval generate --testset-size 100 --out datasets/golden_candidates.jsonl`
-- `python -m ragas_eval profile --golden datasets/golden_v1.jsonl --out datasets/golden_profile_candidates.jsonl`
+- `python -m ragas_eval profile --golden datasets/golden_candidates.jsonl --out datasets/golden_profile_candidates.jsonl`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --repeat 3`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --offline`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3`

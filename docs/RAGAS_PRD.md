@@ -81,12 +81,12 @@ golden은 RAG가 검색해서 정답 정책을 찾아야만 답할 수 있는 �
 
 ## 프로필 채우기 (`profile`)
 
-RAG는 정책을 프로필로만 거르고, 질문의 지역·나이가 프로필과 다르면 되묻는다. 프로필이 빈 샘플은 1차 필터·되묻기를 거치지 않는 경로만 재므로, 정답 정책 조건에 맞춘 프로필을 채운 다음 버전을 만든다.
+RAG는 정책을 프로필로만 거르고, 질문의 지역·나이가 프로필과 다르면 되묻는다. 프로필이 빈 샘플은 1차 필터·되묻기를 거치지 않는 경로만 재므로, 정답 정책 조건에 맞춘 프로필을 채운다. 새 데이터셋은 `generate` 후보에 프로필을 붙인 뒤 검수해 한 번에 확정한다 (`generate` → `profile` → 검수 → `golden_vN`). 이미 프로필 없이 확정된 버전(`golden_v1`)은 확정본에 프로필을 붙여 다음 버전으로 만든다.
 
 | 항목 | 값 |
 | --- | --- |
-| 명령 | `python -m ragas_eval profile --golden datasets/golden_v1.jsonl [--out datasets/golden_profile_candidates.jsonl]` |
-| 입력 | golden jsonl + DB `policy`(`min_age`, `max_age`), `policy_region`(`region_code` 앞 2자리). 읽기 전용 |
+| 명령 | `python -m ragas_eval profile --golden datasets/golden_candidates.jsonl [--out datasets/golden_profile_candidates.jsonl]` (프로필 없는 확정본에 붙일 때는 `--golden datasets/golden_vN.jsonl`) |
+| 입력 | golden 형식 jsonl(`generate` 후보 또는 확정본) + DB `policy`(`min_age`, `max_age`), `policy_region`(`region_code` 앞 2자리). 읽기 전용 |
 | 출력 | 같은 형식의 후보 jsonl (`profile`만 채움). 확정본(`golden_vN.jsonl`)에는 쓰지 않음 |
 | 채우는 항목 | `region_code`, `age`만. 취업 상태·학력 등은 질문 속 페르소나와 어긋나면 답변 끝에 차이 안내가 붙어 정답과 멀어지므로 채우지 않음 |
 | 지역 | 시도 전체 코드(`XX000`). 로컬 DB에 `region` 테이블이 없어 시군구는 쓰지 않음 (시군구 필터는 검증 범위 밖) |
@@ -96,8 +96,8 @@ RAG는 정책을 프로필로만 거르고, 질문의 지역·나이가 프로�
 | 나이 비움 | 질문의 나이대가 정책 나이 범위와 겹치지 않음, 질문에 나이대가 여러 개, 정책 하한 나이 > 상한 나이. `120대`처럼 앞이 숫자면 나이대로 보지 않음 |
 | 기존 프로필 | `region_code`·`age`만 바꾸고 다른 필드는 그대로 둠. 출력 경로가 입력 golden과 같으면 거부 |
 | 프로필 없음 | 정답이 "자격이 안 된다" 판정(`대상이 아닙니다` 등), DB에 정책 없음 |
-| 검수 표시 | 위의 비움·없음, 나이대를 범위에 맞춰 바꿈, 질문에 `NN세`(자격 범위인지 사용자 나이인지 사람이 판단. 사용자 나이면 프로필과 같아야 되묻지 않음) → `reviewed = false` + 이유 출력 |
-| 확정 | 검수 표시 샘플을 고치거나 빼고 `golden_vN+1.jsonl`로 확정 (`ragas-dataset-review` 절차) |
+| 검수 표시 | 위의 비움·없음, 나이대를 범위에 맞춰 바꿈, 질문에 `NN세`(자격 범위인지 사용자 나이인지 검수에서 판단. 사용자 나이면 프로필과 같아야 되묻지 않음) → `reviewed = false` + 이유 출력. 후보는 원래 모두 `reviewed = false`라 검수 대상은 출력된 이유 목록으로 구분 |
+| 확정 | `ragas-dataset-review` 스킬 검수에서 질문·정답과 검수 표시 샘플의 프로필을 함께 판정하고, 사용자 승인 후 `golden_vN.jsonl`로 확정 (프로필 없는 확정본에서 시작했으면 `golden_vN+1.jsonl`) |
 | 비용 | LLM 호출 없음 |
 
 ## 평가 지표
