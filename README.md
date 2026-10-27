@@ -31,7 +31,7 @@ python -m ragas_eval generate --testset-size 130 --policy-limit 150
 
 # 후보에 정답 정책의 시도·나이로 프로필을 채움 (LLM 없음, DB 읽기만)
 # → datasets/golden_profile_candidates.jsonl 저장, 검수가 필요한 샘플과 이유 출력
-# → ragas-dataset-review 스킬로 검수, 사용자 승인 후 golden_vN.jsonl로 확정
+# → ragas-golden-dataset-review 스킬로 검수, 사용자 승인 후 golden_vN.jsonl로 확정
 #   (프로필 없이 확정된 golden_vN에 붙일 때는 --golden datasets/golden_vN.jsonl)
 python -m ragas_eval profile --golden datasets/golden_candidates.jsonl
 
@@ -67,7 +67,7 @@ python -m ragas_eval route --routing datasets/routing_v1.jsonl
 - 질문은 정책당 최대 `testset-size ÷ policy-limit`(올림)건이다. 130 ÷ 150이면 정책당 1건이라 질문이 한 정책에 몰리지 않는다
 - 분석 결과는 `datasets/.cache/`에 저장되어, 같은 정책·모델로 다시 실행하면 분석 비용이 들지 않는다
 
-후보 검수는 Claude Code skill `ragas-dataset-review`(`.claude/skills/ragas-dataset-review/SKILL.md`)로 한다.
+후보 검수는 Claude Code skill `ragas-golden-dataset-review`(`.claude/skills/ragas-golden-dataset-review/SKILL.md`)로 한다.
 Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 정책 원문과 전수 대조해 검수표(`docs/golden_vN/review.md`, 로컬 전용)를 만들고,
 사용자가 제외 목록을 승인하면 `datasets/golden_vN.jsonl`로 확정한다. 판정 기준(모호한 질문, 정답 불일치, 페르소나 불일치, 시점 의존, 동명 정책 등)은 skill 문서에 있다.
 
@@ -108,7 +108,7 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 
 ### 4. 라우팅 평가 (K8s Job, `route`)
 
-데이터셋은 `datasets/routing_vN.jsonl`(질문, 기대 유형 7종 중 1~3개)이다. 초안 `routing_candidates.jsonl`을 검수해 확정하고, 확정본은 수정하지 않는다.
+데이터셋은 `datasets/routing_vN.jsonl`(질문, 기대 유형 7종 중 1~3개)이다. Claude Code skill `ragas-routing-dataset`(`.claude/skills/ragas-routing-dataset/SKILL.md`)으로 초안 `routing_candidates.jsonl`을 쓰고 검수해 확정하며(생성 명령 없음), 확정본은 수정하지 않는다.
 
 | 순서 | 파일 | 역할 | 입력 → 출력 |
 |---|---|---|---|

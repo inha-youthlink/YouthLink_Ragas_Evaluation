@@ -81,6 +81,7 @@ YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로
 - 평가 테이블 DDL: `db/ragas_schema.sql`
 - 설치·실행 명령: `README.md`
 - 테스트 작성: `.claude/skills/ragas-eval-test/SKILL.md`
-- 데이터셋 후보 검토·golden 확정: `.claude/skills/ragas-dataset-review/SKILL.md`
+- 데이터셋 후보 검토·golden 확정: `.claude/skills/ragas-golden-dataset-review/SKILL.md`
+- routing 데이터셋 작성·확정: `.claude/skills/ragas-routing-dataset/SKILL.md`
 - RAG 입출력 모델: `../YouthLink_RAG/app/schemas/pipeline.py`
 - 정책 테이블 원본 DDL: `../youthlink-data-pipeline/db/schema.sql`

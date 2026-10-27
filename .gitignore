@@ -20,3 +20,4 @@ results/
 # 로컬 작업 문서 (저장소에 올리지 않음)
 docs/pr.md
 docs/golden_v*/
+docs/routing_v*/
