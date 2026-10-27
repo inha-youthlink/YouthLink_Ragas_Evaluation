@@ -234,6 +234,7 @@ def test_trace_details_keep_candidates_cards_analysis_handler_conditions(rag_pay
         "analysis": analysis,
         "handler": "default_rag",
         "conditions": conditions,
+        "prompt_version": "generate_v1",
     }
 
 
@@ -242,7 +243,22 @@ def test_trace_details_keep_clarify_reason(rag_payload):
 
     result, _ = call_with(payload)
 
-    assert result.trace_details == {"handler": "clarify", "clarify_reason": "condition"}
+    assert result.trace_details == {"handler": "clarify", "clarify_reason": "condition", "prompt_version": "generate_v1"}
+
+
+def test_answer_prompt_is_kept_per_sample_and_embedding_model_on_result(rag_payload):
+    payload = with_trace(rag_payload, prompt_version="answer_common_v2+answer_cards_v2", embedding_model="test-rag-emb")
+
+    result, _ = call_with(payload)
+
+    assert result.trace_details == {"prompt_version": "answer_common_v2+answer_cards_v2"}
+    assert result.embedding_model == "test-rag-emb"
+
+
+@pytest.mark.parametrize("key", ["prompt_version", "embedding_model"])
+def test_non_string_version_fails(rag_payload, key):
+    with pytest.raises(ValueError, match=re.escape(f"trace.{key}:string_type")):
+        call_with(with_trace(rag_payload, **{key: 1}))
 
 
 def test_analysis_tokens_are_recorded_apart_from_generation_tokens(rag_payload):
@@ -259,7 +275,7 @@ def test_response_without_new_trace_keys_has_no_details(rag_payload):
     result, _ = call_with(payload)
 
     # cards가 없는 예전 응답의 policies는 카드가 아니므로 남기지 않는다
-    assert result.trace_details == {}
+    assert result.trace_details == {"prompt_version": "generate_v1"}
     assert result.tokens == {"prompt_tokens": 850, "completion_tokens": 40}
 
 
@@ -282,7 +298,7 @@ def test_filtered_policy_nos_is_kept_when_key_is_present(rag_payload, filtered):
     result, _ = call_with(with_trace(rag_payload, filtered_policy_nos=filtered))
 
     # null(필터 미적용)과 [](적용했으나 0건)도 키가 있으면 남겨, 예전 RAG(키 없음)와 구분한다
-    assert result.trace_details == {"filtered_policy_nos": filtered}
+    assert result.trace_details == {"filtered_policy_nos": filtered, "prompt_version": "generate_v1"}
 
 
 def test_filtered_policy_nos_is_omitted_when_key_is_absent(rag_payload):

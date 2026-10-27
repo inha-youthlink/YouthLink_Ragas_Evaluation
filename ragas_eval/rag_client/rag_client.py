@@ -15,7 +15,8 @@ TOKEN_KEYS = {"prompt": "prompt_tokens", "completion": "completion_tokens"}
 # 질문 분석 토큰(trace.analysis.tokens)은 생성 토큰과 따로 기록된다
 ANALYSIS_TOKEN_KEYS = {"prompt": "analysis_prompt_tokens", "completion": "analysis_completion_tokens"}
 # 검색 적중률·라우팅 평가용으로 samples.metadata에 원본 그대로 남기는 trace 키 (없으면 저장하지 않음)
-TRACE_DETAIL_KEYS = ("cards", "analysis", "handler", "clarify_reason", "conditions")
+# prompt_version은 답변 종류마다 조립한 조각이 달라 run이 아니라 샘플마다 남긴다
+TRACE_DETAIL_KEYS = ("cards", "analysis", "handler", "clarify_reason", "conditions", "prompt_version")
 
 
 class RagResult(BaseModel):
@@ -37,6 +38,8 @@ class RagResult(BaseModel):
     chat_model: str | None = None
     retriever: str | None = None
     top_k: int | None = Field(default=None, ge=1)
+    # RAG 검색 임베딩 모델. run의 embedding_model(채점용)과 다르다
+    embedding_model: str | None = None
     trace_details: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -82,6 +85,8 @@ class _Trace(BaseModel):
     analysis: _Analysis | None = None
     handler: str | None = None
     conditions: dict[str, Any] | None = None
+    prompt_version: str | None = None
+    embedding_model: str | None = None
     # 1차 필터 통과 정책 번호: null=필터 미적용, []=적용했으나 0건. 예전 RAG는 키 자체가 없다
     filtered_policy_nos: list[str] | None = None
 
@@ -142,5 +147,6 @@ def _to_result(payload: Any) -> RagResult:
         chat_model=trace.chat_model,
         retriever=trace.retriever,
         top_k=trace.top_k,
+        embedding_model=trace.embedding_model,
         trace_details=details,
     )

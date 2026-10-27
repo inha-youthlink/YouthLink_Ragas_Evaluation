@@ -30,11 +30,13 @@ INSERT_RUN = """
 """
 
 # 첫 RAG 응답의 설정만 남긴다. 이미 기록된 값은 덮어쓰지 않는다
+# RAG 임베딩 모델은 컬럼 embedding_model(채점용)과 구분해 metadata.rag_embedding_model에 둔다 (|| 오른쪽 기존 값이 이김)
 UPDATE_RUN_RAG_SETTINGS = """
     UPDATE ragas_evaluation_run
     SET rag_chat_model = COALESCE(rag_chat_model, %(chat_model)s),
         rag_retriever = COALESCE(rag_retriever, %(retriever)s),
-        rag_top_k = COALESCE(rag_top_k, %(top_k)s)
+        rag_top_k = COALESCE(rag_top_k, %(top_k)s),
+        metadata = jsonb_strip_nulls(jsonb_build_object('rag_embedding_model', %(embedding_model)s::text)) || metadata
     WHERE run_id = %(run_id)s AND status = 'RUNNING'
 """
 
@@ -129,7 +131,8 @@ FIND_PENDING = sql.SQL(
 SELECT_RUN = """
     SELECT status, mode, dataset_version, judge_model, embedding_model, rag_chat_model,
            metadata->>'prompt_version' AS prompt_version, rag_retriever, rag_top_k,
-           metadata->>'scoring_prompt' AS scoring_prompt
+           metadata->>'scoring_prompt' AS scoring_prompt,
+           metadata->>'rag_embedding_model' AS rag_embedding_model
     FROM ragas_evaluation_run
     WHERE run_id = %(run_id)s
 """
@@ -177,6 +180,7 @@ class RunInfo(NamedTuple):
     rag_retriever: str | None
     rag_top_k: int | None
     scoring_prompt: str | None
+    rag_embedding_model: str | None
 
 
 def insert_run(
@@ -210,9 +214,21 @@ def insert_run(
 
 
 def update_run_rag_settings(
-    conn: psycopg.Connection, run_id: UUID, *, chat_model: str | None, retriever: str | None, top_k: int | None
+    conn: psycopg.Connection,
+    run_id: UUID,
+    *,
+    chat_model: str | None,
+    retriever: str | None,
+    top_k: int | None,
+    embedding_model: str | None = None,
 ) -> None:
-    params = {"run_id": run_id, "chat_model": chat_model, "retriever": retriever, "top_k": top_k}
+    params = {
+        "run_id": run_id,
+        "chat_model": chat_model,
+        "retriever": retriever,
+        "top_k": top_k,
+        "embedding_model": embedding_model,
+    }
     _execute_one(conn, UPDATE_RUN_RAG_SETTINGS, params, run_id)
 
 

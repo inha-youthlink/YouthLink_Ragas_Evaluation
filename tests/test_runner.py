@@ -61,6 +61,7 @@ def rag_answer(sample, **overrides):
         "chat_model": "test-chat",
         "retriever": "vector",
         "top_k": 5,
+        "embedding_model": "test-rag-emb",
     }
     return RagResult(**{**fields, **overrides})
 
@@ -219,6 +220,8 @@ def test_execute_records_rag_settings_only_in_rag_mode(conn, golden_record):
     settings_of = lambda run_id: tuple(run_row(conn, run_id)[k] for k in ("rag_chat_model", "rag_retriever", "rag_top_k"))
     assert settings_of(rag_run) == ("test-chat", "vector", 5)
     assert settings_of(offline_run) == (None, None, None)
+    assert run_row(conn, rag_run)["metadata"]["rag_embedding_model"] == "test-rag-emb"
+    assert "rag_embedding_model" not in run_row(conn, offline_run)["metadata"]
 
 
 def answer_with_trace(sample):
@@ -607,16 +610,17 @@ def test_rag_call_does_not_retry_contract_violation(golden_record, rag_payload):
 
 
 @pytest.mark.db
-def test_rag_settings_change_during_run_marks_failed(conn, golden_record):
+@pytest.mark.parametrize(("field", "value"), [("chat_model", "new-chat"), ("embedding_model", "new-rag-emb")])
+def test_rag_settings_change_during_run_marks_failed(conn, golden_record, field, value):
     samples = make_samples(golden_record, 2)
     run_id = new_run(conn, samples)
     asyncio.run(execute(conn, run_id, "rag", samples, Recorder(fail_answer={"single-000002"}).workers()))
     redeployed = Recorder()
 
     async def answer_with_new_model(sample):
-        return rag_answer(sample, chat_model="new-chat")
+        return rag_answer(sample, **{field: value})
 
-    with pytest.raises(ValueError, match="chat_model"):
+    with pytest.raises(ValueError, match=field):
         asyncio.run(execute(conn, run_id, "rag", samples, Workers(answer_with_new_model, redeployed.score)))
 
     assert get_run(conn, run_id).status == "FAILED"

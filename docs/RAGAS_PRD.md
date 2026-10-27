@@ -198,7 +198,7 @@ RAG는 정책을 프로필로만 거르고, 질문의 지역·나이가 프로�
 - RAG 재시도: 연결 오류·타임아웃·5xx만 2회 (1초, 2초 대기). 4xx·계약 위반은 재시도 없음. baseline·채점은 OpenAI SDK 재시도 2회
 - 응답 실패 (재시도 후): `answer` NULL 유지, `sample_id`·에러 종류만 로그 → 나머지 계속 → 미완료가 있으면 집계하지 않고 `RUNNING`으로 남김 (종료 코드 1, 남은 반복 중단)
 - 예기치 못한 오류 (DB·코드): 진행 중 작업 취소 후 `FAILED`
-- RAG 설정 변경 감지: 응답의 `chat_model`·`retriever`·`top_k`가 run에 기록된 값과 다르면 (RAG 재배포) `FAILED`
+- RAG 설정 변경 감지: 응답의 `chat_model`·`retriever`·`top_k`·`embedding_model`이 run에 기록된 값(`rag_*` 컬럼, `metadata.rag_embedding_model`)과 다르면 (RAG 재배포) `FAILED`. 답변 프롬프트(`trace.prompt_version`)는 답변 종류마다 달라 감지하지 않고 샘플 `metadata.prompt_version`에 남긴다
 - 커밋 단위: run·samples INSERT 1회, 샘플별 응답 UPDATE·채점 UPDATE마다 (중단돼도 진행분 보존)
 - 성적표: `ragas_evaluation_run.avg_*` (실행별), `ragas_evaluation_samples` (샘플별)
 
@@ -265,7 +265,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
 | 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
-| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·프롬프트 버전), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
+| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·RAG 임베딩 모델·프롬프트 버전. `rag`는 샘플의 답변 프롬프트 조합을 모아 보임), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
 | 비용 | LLM 호출 없음 |
@@ -357,6 +357,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 - [x] 7-1. 되묻기 응답 채점 제외 (`runner`), 재개 대상 제외 (`repository`), 보고서 섹션 (`report`) + 테스트
 - [x] 7-2. 7-1 DB 통합 테스트를 임시 PostgreSQL에서 실행
 - [x] 7-3. 짧은 답변(`handler = "short"`) 검색 지표·검색 적중률 제외 (`scorer`·`runner`, 재개 포함), 보고서 섹션 + 테스트 (임시 PostgreSQL)
+- [x] 7-4. RAG 버전 기록: 샘플 `metadata.prompt_version`, `run.metadata.rag_embedding_model` + 재배포 감지, 보고서 실행 조건 + 테스트 (임시 PostgreSQL, DDL 변경 없음)
 - [x] 8-1. `GoldenProfile`: golden `profile`을 RAG `Profile` 필드로 검사 (모르는 키·형식 오류 로드 실패), RAG 요청에는 채운 필드만 + 테스트
 - [x] 8-2. `profile` 명령: 정답 정책의 시도·나이로 프로필 채운 후보 생성, 검수 표시 + 테스트
 - [ ] 8-3. golden_v1 프로필 후보 검수 → `golden_v2.jsonl` 확정 (사용자 승인 후)

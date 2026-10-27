@@ -267,10 +267,20 @@ def _is_clarify(result: RagResult) -> bool:
 def _record_rag_settings(conn: psycopg.Connection, run_id: UUID, result: RagResult) -> None:
     """첫 응답의 RAG 설정을 run에 남기고, 이후 응답이 다른 설정이면(RAG 재배포) 한 run에 섞이지 않게 멈춘다."""
     repository.update_run_rag_settings(
-        conn, run_id, chat_model=result.chat_model, retriever=result.retriever, top_k=result.top_k
+        conn,
+        run_id,
+        chat_model=result.chat_model,
+        retriever=result.retriever,
+        top_k=result.top_k,
+        embedding_model=result.embedding_model,
     )
     info = repository.get_run(conn, run_id)
-    stored = {"chat_model": info.rag_chat_model, "retriever": info.rag_retriever, "top_k": info.rag_top_k}
+    stored = {
+        "chat_model": info.rag_chat_model,
+        "retriever": info.rag_retriever,
+        "top_k": info.rag_top_k,
+        "embedding_model": info.rag_embedding_model,
+    }
     changed = [k for k, v in stored.items() if getattr(result, k) is not None and getattr(result, k) != v]
     if changed:
         conn.rollback()

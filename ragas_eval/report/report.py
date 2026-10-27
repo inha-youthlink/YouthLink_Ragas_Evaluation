@@ -61,7 +61,8 @@ SELECT_SAMPLES = sql.SQL(
            metadata->'retrieval' AS retrieval,
            metadata->'routing' AS routing,
            metadata->>'handler' AS handler,
-           metadata->>'clarify_reason' AS clarify_reason
+           metadata->>'clarify_reason' AS clarify_reason,
+           metadata->>'prompt_version' AS prompt_version
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s
     ORDER BY sample_id
@@ -120,7 +121,7 @@ def render(data: ReportData) -> str:
     sections = [
         f"# RAGAS 평가 결과: {run['dataset_version']} / {run['mode']} / 반복 {run['repeat_no']}",
         _summary(run, data.samples),
-        _conditions(run),
+        _conditions(run, data.samples),
         _averages(run),
         _retrieval(data.samples),
         _clarify(data.samples),
@@ -155,15 +156,19 @@ def _summary(run: Mapping[str, Any], samples: Sequence[Mapping[str, Any]]) -> st
     return _table(["항목", "값"], rows)
 
 
-def _conditions(run: Mapping[str, Any]) -> str:
+def _conditions(run: Mapping[str, Any], samples: Sequence[Mapping[str, Any]]) -> str:
+    metadata = run["metadata"] or {}
+    # baseline은 run에 하나, rag는 답변 종류마다 조각이 달라 샘플에 남은 값을 모아 보인다
+    sample_prompts = ", ".join(sorted({s["prompt_version"] for s in samples if s.get("prompt_version")}))
     rows = [
         ["답변 모델", run["rag_chat_model"]],
         ["검색 방식", run["rag_retriever"]],
         ["top_k", run["rag_top_k"]],
+        ["RAG 임베딩 모델", metadata.get("rag_embedding_model")],
         ["채점 모델", run["judge_model"]],
         ["임베딩 모델", run["embedding_model"]],
-        ["프롬프트 버전", (run["metadata"] or {}).get("prompt_version")],
-        ["채점 프롬프트", (run["metadata"] or {}).get("scoring_prompt")],
+        ["프롬프트 버전", metadata.get("prompt_version") or sample_prompts],
+        ["채점 프롬프트", metadata.get("scoring_prompt")],
     ]
     return "## 실행 조건\n\n" + _table(["항목", "값"], [[k, _text(v)] for k, v in rows])
 

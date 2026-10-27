@@ -106,6 +106,21 @@ def test_render_shows_run_conditions_and_averages():
     assert "| 채점 프롬프트 | answer_relevancy-ko-v1 |" in text
 
 
+def test_render_shows_rag_embedding_model_and_answer_prompts_from_samples():
+    run = run_row(mode="rag", metadata={"scoring_prompt": "test-scoring", "rag_embedding_model": "test-rag-emb"})
+    samples = [
+        sample_row("single-000001", Decimal("0.900"), prompt_version="answer_b+answer_cards"),
+        sample_row("single-000002", Decimal("0.100"), prompt_version="answer_a"),
+        sample_row("single-000003", None, prompt_version="answer_a"),
+        sample_row("single-000004", None),
+    ]
+
+    text = render(report_data(run=run, samples=samples))
+
+    assert "| RAG 임베딩 모델 | test-rag-emb |" in text
+    assert "| 프롬프트 버전 | answer_a, answer_b+answer_cards |" in text
+
+
 def test_render_compares_modes_with_rag_minus_baseline():
     text = render(report_data())
 

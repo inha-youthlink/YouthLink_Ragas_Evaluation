@@ -113,6 +113,21 @@ def test_rag_settings_are_recorded_once(eval_conn, run_id):
 
 
 @pytest.mark.db
+def test_rag_embedding_model_is_recorded_once_in_metadata(eval_conn):
+    run_id = insert_run(eval_conn, mode="rag", metadata={"scoring_prompt": "test-prompt"}, **RUN_FIELDS)
+    update_run_rag_settings(eval_conn, run_id, chat_model="test-chat", retriever="vector", top_k=10)
+    update_run_rag_settings(
+        eval_conn, run_id, chat_model="test-chat", retriever="vector", top_k=10, embedding_model="test-rag-emb"
+    )
+    update_run_rag_settings(
+        eval_conn, run_id, chat_model="test-chat", retriever="vector", top_k=10, embedding_model="other-emb"
+    )
+
+    assert run_row(eval_conn, run_id)["metadata"] == {"scoring_prompt": "test-prompt", "rag_embedding_model": "test-rag-emb"}
+    assert get_run(eval_conn, run_id).rag_embedding_model == "test-rag-emb"
+
+
+@pytest.mark.db
 def test_insert_samples_stores_question_fields(eval_conn, run_id, golden_record):
     count = insert_samples(eval_conn, run_id, make_samples(golden_record, 2))
 
@@ -374,7 +389,7 @@ def test_get_run_returns_resume_conditions(eval_conn, run_id):
     finish_run(eval_conn, finished, "FAILED")
 
     assert get_run(eval_conn, run_id) == (
-        "RUNNING", "rag", "golden_v1", "test-judge", "test-emb", None, None, None, None, None
+        "RUNNING", "rag", "golden_v1", "test-judge", "test-emb", None, None, None, None, None, None
     )
     assert get_run(eval_conn, finished)[:3] == ("FAILED", "offline", "golden_v1")
     assert get_run(eval_conn, UUID(int=0)) is None
