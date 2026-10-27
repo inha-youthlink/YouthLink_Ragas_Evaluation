@@ -372,4 +372,4 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 - [x] 7-4. RAG 버전 기록: 샘플 `metadata.prompt_version`, `run.metadata.rag_embedding_model` + 재배포 감지, 보고서 실행 조건 + 테스트 (임시 PostgreSQL, DDL 변경 없음)
 - [x] 8-1. `GoldenProfile`: golden `profile`을 RAG `Profile` 필드로 검사 (모르는 키·형식 오류 로드 실패), RAG 요청에는 채운 필드만 + 테스트
 - [x] 8-2. `profile` 명령: 정답 정책의 시도·나이로 프로필 채운 후보 생성, 검수 표시 + 테스트
-- [ ] 8-3. golden_v1 프로필 후보 검수 → `golden_v2.jsonl` 확정 (사용자 승인 후)
+- [x] 8-3. golden_v1 프로필 후보 검수 → `golden_v2.jsonl` 확정 (사용자 승인, 100건. 오탐 2건 프로필 수정, 제외 0건)
