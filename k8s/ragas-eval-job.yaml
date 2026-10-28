@@ -23,6 +23,8 @@ data:
   EMBEDDING_MODEL: "bedrock-titan-embed-v2"
   # run --baseline 전용. RAG chat_model과 같게 둔다
   BASELINE_MODEL: "bedrock-gpt-5.6-luna"
+  # 채점 LLM 동시 요청 상한. RAG와 같은 API 키(키당 동시 8)를 나눠 쓰므로 RAG 몫 4를 남긴다
+  LLM_MAX_CONCURRENCY: "4"
   # bedrock-* 모델은 OpenAI 호환 프록시로 호출하므로 프록시 주소가 필요하다. 없으면 OpenAI 기본 주소로 가서 실패한다
   # OPENAI_BASE_URL: "<프록시 주소>"
 ---
@@ -34,7 +36,8 @@ metadata:
     app: ragas-eval
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: 3600
+  # offline 100건이 RAG 없이 약 33분. rag 모드는 RAG 호출이 더해지고 동시 요청이 4라 1시간을 넘을 수 있다
+  activeDeadlineSeconds: 7200
   template:
     metadata:
       labels:
@@ -47,8 +50,8 @@ spec:
           image: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/youthlink/ragas-eval:latest
           # 기본: 답변 품질 평가. 다른 실행은 아래 args 예시로 교체
           #   args: ["route", "--routing", "datasets/routing_v1.jsonl"]
-          #   args: ["run", "--golden", "datasets/golden_v1.jsonl", "--baseline"]
-          args: ["run", "--golden", "datasets/golden_v1.jsonl"]
+          #   args: ["run", "--golden", "datasets/golden_v2.jsonl", "--baseline"]
+          args: ["run", "--golden", "datasets/golden_v2.jsonl"]
           envFrom:
             - configMapRef:
                 name: ragas-eval-config
