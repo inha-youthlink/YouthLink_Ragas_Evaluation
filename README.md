@@ -122,6 +122,8 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 
 `Dockerfile`은 `ragas_eval/`과 `datasets/`만 이미지에 넣는다 (`.env`는 `.dockerignore`로 차단). 코드나 데이터셋을 바꾸면 이미지를 다시 빌드한다.
 
+이미지는 `.github/workflows/deploy.yml`이 main push(이미지에 들어가는 파일 변경 시) 또는 수동 실행으로 빌드해 ECR `youthlink/ragas-eval`에 `latest`·커밋 SHA 태그로 push한다. GitHub 저장소 Variables에 `AWS_ROLE_ARN`(`youthlink-github-deploy`), `AWS_REGION`이 있어야 한다. 아래 `docker build`는 로컬 확인용이다.
+
 ```bash
 docker build -t youthlink/ragas-eval:latest .
 
