@@ -51,6 +51,29 @@ def fake_settings(database_url="postgresql://unused/test_db", baseline_model="te
     )
 
 
+def test_llm_client_caps_connections_and_skips_pool_timeout(monkeypatch):
+    captured = {}
+
+    def fake_http_client(**kwargs):
+        captured.update(kwargs)
+        return httpx.AsyncClient(**kwargs)
+
+    monkeypatch.setattr(runner, "DefaultAsyncHttpxClient", fake_http_client)
+    settings = SimpleNamespace(
+        openai_api_key=SecretStr("sk-test"),
+        openai_base_url=None,
+        openai_timeout=30.0,
+        openai_max_retries=2,
+        llm_max_concurrency=3,
+    )
+
+    client = runner.llm_client(settings)
+
+    assert captured["limits"].max_connections == 3
+    assert (client.timeout.read, client.timeout.pool) == (30.0, None)
+    assert client.max_retries == 2
+
+
 def rag_answer(sample, **overrides):
     fields = {
         "answer": f"{sample.sample_id} 답변",

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # baseline·채점 OpenAI 호출. 공정 비교를 위해 RAG OPENAI_TIMEOUT·OPENAI_MAX_RETRIES 기본값과 맞춘다
     openai_timeout: float = Field(default=30.0, gt=0)
     openai_max_retries: int = Field(default=2, ge=0)
+    # 채점·baseline LLM 동시 요청 상한. 샘플 동시 실행 × 지표 병렬 호출이 게이트웨이 키당 제한(8)을 넘어 429가 나므로 연결 수로 묶는다
+    llm_max_concurrency: int = Field(default=6, ge=1)
 
 
 @lru_cache

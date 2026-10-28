@@ -125,7 +125,7 @@
 | `activeDeadlineSeconds` | 3600 |
 | 시크릿 | `OPENAI_API_KEY`, `DATABASE_URL` |
 | 의존 | RAG Service (`RAG_BASE_URL`, `rag` 모드만) |
-| 동시성 | `asyncio.Semaphore(5)` |
+| 동시성 | 샘플 `asyncio.Semaphore(5)`, 채점·baseline LLM 요청 `LLM_MAX_CONCURRENCY`(기본 6, 게이트웨이 키당 제한 8 미만) |
 
 ## 선행 작업
 

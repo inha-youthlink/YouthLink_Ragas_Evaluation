@@ -16,7 +16,14 @@ REQUIRED_ENV = {
 def required_env(monkeypatch):
     for key, value in REQUIRED_ENV.items():
         monkeypatch.setenv(key, value)
-    for key in ("BASELINE_MODEL", "OPENAI_TIMEOUT", "OPENAI_MAX_RETRIES", "EMBEDDING_MODEL", "OPENAI_BASE_URL"):
+    for key in (
+        "BASELINE_MODEL",
+        "OPENAI_TIMEOUT",
+        "OPENAI_MAX_RETRIES",
+        "EMBEDDING_MODEL",
+        "OPENAI_BASE_URL",
+        "LLM_MAX_CONCURRENCY",
+    ):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -46,6 +53,19 @@ def test_openai_call_settings_default_to_rag_values(required_env):
     settings = Settings(_env_file=None)
 
     assert (settings.openai_timeout, settings.openai_max_retries) == (30.0, 2)
+
+
+def test_llm_max_concurrency_defaults_below_gateway_limit(required_env):
+    settings = Settings(_env_file=None)
+
+    assert settings.llm_max_concurrency == 6
+
+
+def test_llm_max_concurrency_rejects_zero(required_env, monkeypatch):
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
 
 
 def test_empty_optional_values_fall_back_to_defaults(required_env, monkeypatch):

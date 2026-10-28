@@ -10,7 +10,7 @@ from uuid import UUID
 
 import httpx
 import psycopg
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, DefaultAsyncHttpxClient
 
 from ragas_eval.baseline_client import baseline_client
 from ragas_eval.config import Settings, get_settings
@@ -334,15 +334,23 @@ async def _resume(
         return [await execute(conn, run_id, mode, {s.sample_id: s for s in samples}, workers)]
 
 
+def llm_client(settings: Settings) -> AsyncOpenAI:
+    """채점·baseline LLM 클라이언트. 연결 수를 llm_max_concurrency로 묶어 동시 요청이 그 이상 나가지 않게 한다."""
+    limit = settings.llm_max_concurrency
+    return AsyncOpenAI(
+        api_key=settings.openai_api_key.get_secret_value(),
+        base_url=settings.openai_base_url,
+        # 연결이 빌 때까지 기다리는 시간은 타임아웃으로 보지 않는다 (요청 자체의 타임아웃만 적용)
+        timeout=httpx.Timeout(settings.openai_timeout, pool=None),
+        max_retries=settings.openai_max_retries,
+        http_client=DefaultAsyncHttpxClient(limits=httpx.Limits(max_connections=limit, max_keepalive_connections=limit)),
+    )
+
+
 @asynccontextmanager
 async def _workers(settings: Settings, mode: Mode) -> AsyncIterator[Workers]:
     """모드별 응답 함수와 채점 함수를 만들고, 쓰는 동안 HTTP·OpenAI 클라이언트를 열어 둔다."""
-    async with AsyncOpenAI(
-        api_key=settings.openai_api_key.get_secret_value(),
-        base_url=settings.openai_base_url,
-        timeout=settings.openai_timeout,
-        max_retries=settings.openai_max_retries,
-    ) as openai_client:
+    async with llm_client(settings) as openai_client:
         metrics = scorer.build_metrics(openai_client, settings.judge_model, settings.embedding_model)
 
         async def score(sample: GoldenSample, answer: str, contexts: list[str]) -> ScoreResult:
