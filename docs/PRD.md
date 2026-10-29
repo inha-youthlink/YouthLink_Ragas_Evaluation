@@ -100,7 +100,7 @@
 | `ragas_eval/report/report.py` | 결과 조회 → 마크다운 성적표 (`results/`) |
 | `db/ragas_schema.sql` | DDL |
 | `datasets/golden_vN.jsonl` | 확정 데이터셋 |
-| `k8s/ragas-eval-job.yaml` | 평가 Job |
+| (배포 저장소 `YouthLink_Deploy`) | 평가 Dockerfile(`apps/ragas-eval/`), 평가 Job(`k8s/ragas-eval/`), 실행 workflow(`evaluate.yml`) |
 | `tests/` | 변환·저장 단위 테스트 |
 
 ## 명령어
@@ -143,7 +143,7 @@
 | 1. 기반 | `pytest.ini`, `conftest.py`, 공유 타입 | 순차 | - |
 | 2. 독립 모듈 | `policy_source`, `dataset`, `rag_client`, `baseline_client`, `scorer`, `repository` | 병렬 6 | 1 |
 | 3. 조합 모듈 | `generate`, `runner` | 병렬 2 | `generate` ← `policy_source`, `dataset` / `runner` ← `dataset`, `rag_client`, `baseline_client`, `scorer`, `repository` |
-| 4. 배포 | `Dockerfile`, `k8s/ragas-eval-job.yaml` | 순차 | 3 |
+| 4. 배포 | 배포 저장소 `YouthLink_Deploy`로 이전 (`apps/ragas-eval/`, `k8s/ragas-eval/`) | 순차 | 3 |
 
 | 공유 타입 | 위치 | 사용처 |
 | --- | --- | --- |
@@ -165,6 +165,7 @@
 - [x] 3-2. `runner` + 테스트 (`--repeat`, `--offline`, `--baseline`, 재개, 실패 시 `FAILED`)
 - [x] 4-1. `Dockerfile` (Python 3.12, `datasets/` 포함, 비루트 실행, `.dockerignore`로 `.env` 차단)
 - [x] 4-2. `k8s/ragas-eval-job.yaml` (ConfigMap `ragas-eval-config` + Secret `ragas-eval-secrets` 주입. 이미지 주소·`RAG_BASE_URL`·`OPENAI_BASE_URL`은 배포 환경에 맞게 채움)
+- [x] 4-3. Dockerfile·Job 매니페스트·이미지 빌드 workflow를 배포 저장소 `YouthLink_Deploy`로 이전 (이 저장소에서는 삭제)
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)

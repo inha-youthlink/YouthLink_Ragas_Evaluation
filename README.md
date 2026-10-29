@@ -120,32 +120,15 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 
 ## 배포 (K8s Job)
 
-`Dockerfile`은 `ragas_eval/`과 `datasets/`만 이미지에 넣는다 (`.env`는 `.dockerignore`로 차단). 코드나 데이터셋을 바꾸면 이미지를 다시 빌드한다.
+이미지 빌드·매니페스트·실행은 배포 저장소 [`inha-youthlink/YouthLink_Deploy`](https://github.com/inha-youthlink/YouthLink_Deploy)가 맡는다. 이 저장소는 소스코드만 관리한다.
 
-이미지는 `.github/workflows/deploy.yml`이 main push(이미지에 들어가는 파일 변경 시) 또는 수동 실행으로 빌드해 ECR `youthlink/ragas-eval`에 `latest`·커밋 SHA 태그로 push한다. GitHub 저장소 Variables에 `AWS_ROLE_ARN`(`youthlink-github-deploy`), `AWS_REGION`이 있어야 한다. 아래 `docker build`는 로컬 확인용이다.
-
-```bash
-docker build -t youthlink/ragas-eval:latest .
-
-# 비밀값은 Secret으로만 넣는다 (파일에 적지 않는다)
-kubectl create secret generic ragas-eval-secrets \
-  --from-literal=OPENAI_API_KEY='...' \
-  --from-literal=DATABASE_URL='...'
-
-# Job은 이름이 같으면 지우고 다시 만든다
-kubectl delete job ragas-eval --ignore-not-found
-kubectl apply -f k8s/ragas-eval-job.yaml
-kubectl logs -f job/ragas-eval
-```
-
-`k8s/ragas-eval-job.yaml`에서 배포 환경에 맞게 채울 값은 다음과 같다.
-
-| 값 | 위치 |
+| 작업 | 배포 저장소에서 |
 | --- | --- |
-| 이미지 주소 (ECR 계정 ID·리전) | Job `image` |
-| `RAG_BASE_URL` (RAG Service 주소) | ConfigMap `ragas-eval-config` |
-| `OPENAI_BASE_URL` (bedrock 모델을 호출하는 프록시 주소) | ConfigMap 주석 해제 |
-| 실행 명령 (`run`, `run --baseline`, `route` 등) | Job `args` |
+| 이미지 빌드 (코드·데이터셋 변경 시) | deploy workflow, `app: ragas-eval` (`apps/ragas-eval/Dockerfile`, 이미지에는 `ragas_eval/`과 `datasets/`만 들어감) |
+| 평가 실행 | evaluate workflow, `command: run`·`route`·`baseline` (LLM 비용 발생) |
+| 일반 설정 (`RAG_BASE_URL`, 모델명, `LLM_MAX_CONCURRENCY`, `OPENAI_BASE_URL`) | `k8s/ragas-eval/overlays/prod/config.env` |
+| 실행 제한·리소스 | `k8s/ragas-eval/base/job.yaml` |
+| 비밀값 (`OPENAI_API_KEY`, `DATABASE_URL`) | 클러스터 Secret `ragas-eval-secrets`에 수동 생성 |
 
 ## 결과 확인
 
