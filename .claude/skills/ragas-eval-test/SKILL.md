@@ -1,6 +1,6 @@
 ---
 name: ragas-eval-test
-description: rag_ragas_evaluation(ragas_eval 패키지)의 pytest 테스트 작성 규격. 모듈별로 무엇을 테스트하고 무엇을 빼는지, OpenAI·RAGAS·RAG 서버·DB를 어떻게 대체하는지, 설정 캐시·Decimal·NaN·비동기 함정을 다룬다. ragas_eval 모듈을 추가·수정할 때, tests/에 테스트를 새로 쓰거나 고칠 때, 테스트가 깨질 때 사용한다.
+description: YouthLink_Ragas_Evaluation(ragas_eval 패키지)의 pytest 테스트 작성 규격. 모듈별로 무엇을 테스트하고 무엇을 빼는지, OpenAI·RAGAS·RAG 서버·DB를 어떻게 대체하는지, 설정 캐시·Decimal·NaN·비동기 함정을 다룬다. ragas_eval 모듈을 추가·수정할 때, tests/에 테스트를 새로 쓰거나 고칠 때, 테스트가 깨질 때 사용한다.
 ---
 
 # ragas_eval 테스트 규격

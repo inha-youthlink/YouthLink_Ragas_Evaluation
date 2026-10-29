@@ -1,4 +1,4 @@
-# rag_ragas_evaluation
+# YouthLink_Ragas_Evaluation
 
 YouthLink RAG를 RAGAS로 평가하는 저장소다. 서비스 DB의 `policy`로 데이터셋을 만들고,
 배포된 RAG를 호출해 RAGAS 지표로 채점한 뒤 결과를 서비스 DB의 평가 테이블에 저장한다.

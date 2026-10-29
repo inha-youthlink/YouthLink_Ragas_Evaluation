@@ -1,4 +1,4 @@
-# rag_ragas_evaluation
+# YouthLink_Ragas_Evaluation
 
 YouthLink RAG를 RAGAS로 평가합니다. 상세 계획은 `docs/PRD.md`(공통), `docs/RAGAS_PRD.md`(RAGAS 채점), `docs/RETRIEVE_PRD.md`(검색·라우팅 평가), DB 스키마는 `docs/Schema.md`를 참고합니다.
 
