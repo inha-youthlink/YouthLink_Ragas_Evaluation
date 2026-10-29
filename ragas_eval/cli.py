@@ -3,6 +3,7 @@ import argparse
 from collections.abc import Sequence
 from uuid import UUID
 
+from ragas_eval.dataset import dataset
 from ragas_eval.generate import generate
 from ragas_eval.profile import profile
 from ragas_eval.report import report
@@ -32,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     profile_parser.add_argument("--out", default="datasets/golden_profile_candidates.jsonl")
 
     run_parser = sub.add_parser("run", help="확정 데이터셋으로 평가 실행")
-    run_parser.add_argument("--golden", required=True)
+    run_parser.add_argument("--golden", help="생략하면 datasets/의 golden_vN.jsonl 중 N이 가장 큰 파일")
     run_parser.add_argument("--repeat", type=int, default=1)
     mode = run_parser.add_mutually_exclusive_group()
     mode.add_argument("--offline", action="store_true", help="RAG 대신 ground_truth·reference_contexts로 채점 경로 검증")
@@ -40,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--resume", metavar="RUN_ID", help="RUNNING으로 남은 run의 미완료 샘플만 이어서 실행")
 
     route_parser = sub.add_parser("route", help="확정 라우팅 데이터셋으로 질문 유형 분류 평가")
-    route_parser.add_argument("--routing", required=True)
+    route_parser.add_argument("--routing", help="생략하면 datasets/의 routing_vN.jsonl 중 N이 가장 큰 파일")
 
     report_parser = sub.add_parser("report", help="run 결과를 마크다운 성적표로 저장")
     report_parser.add_argument("--run", required=True, type=UUID, metavar="RUN_ID")
@@ -61,8 +62,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         for flagged in summary.flagged:
             print(f"- {flagged.sample.sample_id}: {' / '.join(flagged.reasons)}")
     elif args.command == "run":
+        golden = args.golden or str(dataset.latest_dataset("golden"))
+        print(f"데이터셋: {golden}")
         outcomes = runner.run(
-            golden_path=args.golden,
+            golden_path=golden,
             repeat=args.repeat,
             offline=args.offline,
             baseline=args.baseline,
@@ -74,7 +77,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         if any(o.status != "SUCCEEDED" for o in outcomes):
             raise SystemExit(1)
     elif args.command == "route":
-        o = runner.route(args.routing)
+        routing = args.routing or str(dataset.latest_dataset("routing"))
+        print(f"데이터셋: {routing}")
+        o = runner.route(routing)
         print(f"run {o.run_id}: {o.status} (미응답 {o.pending_answer}건)")
         if o.status != "SUCCEEDED":
             raise SystemExit(1)

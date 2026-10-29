@@ -1,5 +1,6 @@
 # golden·routing jsonl 로드, reviewed 필터, source_updated_at 변경 검사
 import logging
+import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
@@ -76,6 +77,15 @@ class RoutingSample(BaseModel):
 
 
 Sample = TypeVar("Sample", GoldenSample, RoutingSample)
+
+
+def latest_dataset(kind: Literal["golden", "routing"], directory: str | Path = "datasets") -> Path:
+    """확정 데이터셋 {kind}_vN.jsonl 중 N이 가장 큰 파일. 후보 파일(*_candidates.jsonl)은 고르지 않는다."""
+    pattern = re.compile(rf"{kind}_v(\d+)\.jsonl")
+    versions = {int(m.group(1)): p for p in Path(directory).iterdir() if (m := pattern.fullmatch(p.name))}
+    if not versions:
+        raise FileNotFoundError(f"{directory}에 확정 데이터셋({kind}_vN.jsonl)이 없음")
+    return versions[max(versions)]
 
 
 def load_golden(path: str | Path) -> list[GoldenSample]:

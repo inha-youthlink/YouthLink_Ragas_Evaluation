@@ -108,6 +108,7 @@
 - `ragas_eval`: 프로젝트 자체 패키지 (RAGAS 기본 명령어 아님)
 - `python -m ragas_eval generate --testset-size 100 --out datasets/golden_candidates.jsonl`
 - `python -m ragas_eval profile --golden datasets/golden_candidates.jsonl --out datasets/golden_profile_candidates.jsonl`
+- `python -m ragas_eval run --repeat 3` (`--golden`·`--routing`을 생략하면 `datasets/`에서 번호가 가장 큰 `golden_vN`·`routing_vN`을 쓴다. K8s Job은 생략해서 실행)
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --repeat 3`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --offline`
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --baseline --repeat 3`
@@ -169,3 +170,4 @@
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
+- [x] 5-4. `run --golden`·`route --routing` 생략 시 번호가 가장 큰 확정 데이터셋 자동 선택 (새 데이터셋은 이미지 재빌드만으로 Job에 반영) + 테스트

@@ -23,6 +23,21 @@ KST = timezone(timedelta(hours=9))
 UPDATED_AT = datetime(2026, 9, 30, tzinfo=KST)
 
 
+def test_latest_dataset_picks_highest_version_numerically(tmp_path):
+    for name in ["golden_v2.jsonl", "golden_v10.jsonl", "golden_v9.jsonl", "golden_candidates.jsonl", "routing_v11.jsonl"]:
+        (tmp_path / name).write_text("", encoding="utf-8")
+
+    assert dataset.latest_dataset("golden", tmp_path) == tmp_path / "golden_v10.jsonl"
+    assert dataset.latest_dataset("routing", tmp_path) == tmp_path / "routing_v11.jsonl"
+
+
+def test_latest_dataset_fails_without_confirmed_file(tmp_path):
+    (tmp_path / "golden_candidates.jsonl").write_text("", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="golden_vN"):
+        dataset.latest_dataset("golden", tmp_path)
+
+
 def write_jsonl(path, records):
     path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n", encoding="utf-8")
     return path

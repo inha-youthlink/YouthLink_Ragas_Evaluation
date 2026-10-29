@@ -36,6 +36,8 @@ python -m ragas_eval generate --testset-size 130 --policy-limit 150
 python -m ragas_eval profile --golden datasets/golden_candidates.jsonl
 
 # 확정 데이터셋으로 RAG 호출 → 채점 → 결과 DB 저장, 3회 반복
+# --golden·--routing을 생략하면 datasets/에서 번호가 가장 큰 golden_vN·routing_vN을 쓴다 (K8s Job은 생략해서 실행)
+python -m ragas_eval run --repeat 3
 python -m ragas_eval run --golden datasets/golden_v1.jsonl --repeat 3
 
 # RAG 없이 정답을 응답으로 넣어 채점 → DB 저장 경로만 검증

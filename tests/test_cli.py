@@ -1,8 +1,10 @@
 # CLI 서브커맨드 인자 파싱 테스트
+from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+from ragas_eval.dataset import dataset
 from ragas_eval.generate import generate
 from ragas_eval.report import report
 from ragas_eval.runner import runner
@@ -49,9 +51,20 @@ def test_run_parses_golden_and_repeat():
     assert args.repeat == 3
 
 
-def test_run_requires_golden():
-    with pytest.raises(SystemExit):
-        build_parser().parse_args(["run"])
+def test_run_golden_is_optional():
+    assert build_parser().parse_args(["run"]).golden is None
+
+
+def test_main_run_without_golden_uses_latest_dataset(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(dataset, "latest_dataset", lambda kind: Path(f"datasets/{kind}_v9.jsonl"))
+    monkeypatch.setattr(runner, "run", lambda **kwargs: calls.append(kwargs) or [])
+
+    main(["run", "--baseline"])
+
+    assert calls[0]["golden_path"] == str(Path("datasets/golden_v9.jsonl"))
+    assert calls[0]["baseline"] is True
+    assert "golden_v9.jsonl" in capsys.readouterr().out
 
 
 def test_run_offline_defaults_to_false():
@@ -153,9 +166,15 @@ def test_main_writes_report_and_prints_path(monkeypatch, capsys):
     assert f"out/golden_v1_rag_r1_{UUID(int=7)}.md" in capsys.readouterr().out
 
 
-def test_route_requires_routing_dataset():
-    with pytest.raises(SystemExit):
-        build_parser().parse_args(["route"])
+def test_main_route_without_routing_uses_latest_dataset(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(dataset, "latest_dataset", lambda kind: Path(f"datasets/{kind}_v9.jsonl"))
+    monkeypatch.setattr(runner, "route", lambda path: calls.append(path) or outcome("SUCCEEDED"))
+
+    main(["route"])
+
+    assert calls == [str(Path("datasets/routing_v9.jsonl"))]
+    assert "routing_v9.jsonl" in capsys.readouterr().out
 
 
 def test_main_passes_routing_path_and_prints_outcome(monkeypatch, capsys):
