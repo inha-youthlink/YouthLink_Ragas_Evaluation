@@ -365,7 +365,7 @@ async def _workers(settings: Settings, mode: Mode) -> AsyncIterator[Workers]:
             )
 
         if mode == "rag":
-            async with rag_client.make_client(settings.rag_base_url) as http:
+            async with _make_rag_client(settings) as http:
 
                 async def answer_rag(sample: GoldenSample) -> RagResult:
                     return await call_rag_with_retry(http, sample)
@@ -467,9 +467,14 @@ async def _route(
         return await execute_routing(conn, run_id, samples, answer)
 
 
+def _make_rag_client(settings: Settings) -> httpx.AsyncClient:
+    key = settings.rag_internal_api_key
+    return rag_client.make_client(settings.rag_base_url, key.get_secret_value() if key else None)
+
+
 @asynccontextmanager
 async def _routing_answerer(settings: Settings) -> AsyncIterator[RoutingAnswerer]:
-    async with rag_client.make_client(settings.rag_base_url) as http:
+    async with _make_rag_client(settings) as http:
 
         async def answer(sample: RoutingSample) -> RagResult:
             # 대화 없는 단일 질문이라 프로필·앞 턴 없이 보낸다

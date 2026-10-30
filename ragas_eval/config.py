@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     # 비우면 OpenAI 기본 주소. OpenAI 호환 프록시를 쓸 때만 지정 (예: https://host/v1)
     openai_base_url: str | None = None
     rag_base_url: str = "http://localhost:8000"
+    # RAG INTERNAL_API_KEY와 같은 값. /internal 호출에 X-Internal-Key로 보낸다. 비우면 헤더 없이 호출 (RAG 개발 모드)
+    rag_internal_api_key: SecretStr | None = None
 
     gen_model: str
     judge_model: str

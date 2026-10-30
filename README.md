@@ -126,11 +126,11 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 
 | 작업 | 배포 저장소에서 |
 | --- | --- |
-| 이미지 빌드 (코드·데이터셋 변경 시) | deploy workflow, `app: ragas-eval` (`apps/ragas-eval/Dockerfile`, 이미지에는 `ragas_eval/`과 `datasets/`만 들어감) |
+| 이미지 빌드 (코드·데이터셋 변경 시) | build workflow, `app: ragas-eval` (`apps/ragas-eval/Dockerfile`, 이미지에는 `ragas_eval/`과 `datasets/`만 들어감) |
 | 평가 실행 | evaluate workflow, `command: run`·`route`·`baseline` (LLM 비용 발생) |
-| 일반 설정 (`RAG_BASE_URL`, 모델명, `LLM_MAX_CONCURRENCY`, `OPENAI_BASE_URL`) | `k8s/ragas-eval/overlays/prod/config.env` |
+| 일반 설정 (`RAG_BASE_URL`, 모델명, `LLM_MAX_CONCURRENCY`) | `k8s/ragas-eval/overlays/prod/config.env` |
 | 실행 제한·리소스 | `k8s/ragas-eval/base/job.yaml` |
-| 비밀값 (`OPENAI_API_KEY`, `DATABASE_URL`) | 클러스터 Secret `ragas-eval-secrets`에 수동 생성 |
+| 비밀값 (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `DATABASE_URL`, `RAG_INTERNAL_API_KEY`) | 클러스터 Secret `ragas-eval-secrets`에 수동 생성. `RAG_INTERNAL_API_KEY`는 `rag-secrets`의 `INTERNAL_API_KEY`와 같은 값 |
 
 ## 결과 확인
 

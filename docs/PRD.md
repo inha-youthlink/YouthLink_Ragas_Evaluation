@@ -71,6 +71,7 @@
 | 항목 | 값 |
 | --- | --- |
 | 호출 | `POST {RAG_BASE_URL}/internal/pipeline?debug=true` (`contexts`·`retrieved_chunks` 같은 무거운 trace는 debug 요청에만 포함) |
+| 인증 | 헤더 `X-Internal-Key: {RAG_INTERNAL_API_KEY}`. RAG 운영 모드(`APP_ENV=prod`)는 32자 이상의 `INTERNAL_API_KEY`로 검사하고 틀리면 401. 키를 비우면 헤더를 보내지 않음 (RAG 개발 모드) |
 | 요청 | `PipelineInput` = `{question, profile}` |
 | 응답 | `PipelineOutput` = `{answer, policies[], trace}` |
 | `trace` 필수 키 | `contexts` (list[str]), `retrieved_chunks` (`chunk_id`, `policy_no`, `score`, 선택 `content`), `latency_ms.total`, `tokens.prompt`·`tokens.completion`, `chat_model`, `retriever`, `top_k` |
@@ -85,7 +86,7 @@
 | --- | --- |
 | `ragas_eval/__main__.py` | 진입점 |
 | `ragas_eval/cli.py` | `generate`, `profile`, `run`, `route`, `report` |
-| `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
+| `ragas_eval/config.py` | `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `RAG_BASE_URL`, `RAG_INTERNAL_API_KEY`, `GEN_MODEL`, `JUDGE_MODEL`, `EMBEDDING_MODEL`, `BASELINE_MODEL`, `OPENAI_TIMEOUT`, `OPENAI_MAX_RETRIES` |
 | `ragas_eval/policy_source/policy_source.py` | `policy` → `Document` |
 | `ragas_eval/generate/generate.py` | `TestsetGenerator` → `policy_no` 복원 → `golden_candidates.jsonl` |
 | `ragas_eval/dataset/dataset.py` | jsonl 로드, `reviewed` 필터, `source_updated_at` 검사, `GoldenSample`·`GoldenProfile`·`RoutingSample` 타입 |
@@ -167,6 +168,7 @@
 - [x] 4-1. `Dockerfile` (Python 3.12, `datasets/` 포함, 비루트 실행, `.dockerignore`로 `.env` 차단)
 - [x] 4-2. `k8s/ragas-eval-job.yaml` (ConfigMap `ragas-eval-config` + Secret `ragas-eval-secrets` 주입. 이미지 주소·`RAG_BASE_URL`·`OPENAI_BASE_URL`은 배포 환경에 맞게 채움)
 - [x] 4-3. Dockerfile·Job 매니페스트·이미지 빌드 workflow를 배포 저장소 `YouthLink_Deploy`로 이전 (이 저장소에서는 삭제)
+- [x] 4-4. RAG `/internal` 호출에 `X-Internal-Key` 전송 (`RAG_INTERNAL_API_KEY`, 비우면 생략) + 테스트
 - [x] 5-1. `report` 패키지 뼈대
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)

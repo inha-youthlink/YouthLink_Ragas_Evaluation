@@ -97,8 +97,14 @@ class _PipelineResponse(BaseModel):
     trace: _Trace
 
 
-def make_client(base_url: str) -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=base_url, timeout=httpx.Timeout(RAG_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS))
+def make_client(base_url: str, internal_api_key: str | None = None) -> httpx.AsyncClient:
+    # RAG 운영 모드는 /internal 호출에 X-Internal-Key를 검사한다
+    headers = {"X-Internal-Key": internal_api_key} if internal_api_key else None
+    return httpx.AsyncClient(
+        base_url=base_url,
+        headers=headers,
+        timeout=httpx.Timeout(RAG_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+    )
 
 
 async def call_pipeline(

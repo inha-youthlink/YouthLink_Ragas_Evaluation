@@ -7,7 +7,15 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from ragas_eval.rag_client.rag_client import RagResult, call_pipeline
+from ragas_eval.rag_client.rag_client import RagResult, call_pipeline, make_client
+
+
+def test_make_client_sends_internal_key_header():
+    assert make_client("http://rag.test", "test-internal-key").headers["X-Internal-Key"] == "test-internal-key"
+
+
+def test_make_client_without_key_sends_no_internal_key_header():
+    assert "X-Internal-Key" not in make_client("http://rag.test").headers
 
 
 def test_rag_settings_are_kept():

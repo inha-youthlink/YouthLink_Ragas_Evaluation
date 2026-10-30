@@ -45,10 +45,21 @@ def fake_settings(database_url="postgresql://unused/test_db", baseline_model="te
         database_url=SecretStr(database_url),
         openai_api_key=SecretStr("sk-test"),
         rag_base_url="http://rag.test",
+        rag_internal_api_key=None,
         judge_model="test-judge",
         embedding_model="test-emb",
         baseline_model=baseline_model,
     )
+
+
+@pytest.mark.parametrize(("key", "expected"), [(SecretStr("test-internal-key"), "test-internal-key"), (None, None)])
+def test_rag_client_sends_internal_key_from_settings(key, expected):
+    settings = SimpleNamespace(**{**vars(fake_settings()), "rag_internal_api_key": key})
+
+    client = runner._make_rag_client(settings)
+
+    assert client.headers.get("X-Internal-Key") == expected
+    assert str(client.base_url) == "http://rag.test"
 
 
 def test_llm_client_caps_connections_and_skips_pool_timeout(monkeypatch):
