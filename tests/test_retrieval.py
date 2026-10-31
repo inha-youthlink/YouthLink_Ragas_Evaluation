@@ -28,6 +28,22 @@ def test_gold_policy_surviving_every_stage_hits_all():
     assert result["reciprocal_rank"] == 1.0
 
 
+def test_candidate_rank_is_position_in_candidates_after_rerank():
+    chunks = [chunk("TEST-0002", 0.95), chunk("TEST-0003", 0.93), chunk(GOLD, 0.92)]
+    reranked = {"candidate_nos": [GOLD, "TEST-0002"]}
+
+    result = compute_retrieval_metrics(GOLD, metadata(retrieved_chunks=chunks, cards=reranked))
+
+    assert (result["rank"], result["candidate_rank"]) == (3, 1)
+
+
+def test_candidate_rank_is_null_when_gold_dropped_from_candidates():
+    result = compute_retrieval_metrics(GOLD, metadata(cards={"candidate_nos": ["TEST-0002"]}))
+
+    assert result["candidate_hit"] == 0
+    assert result["candidate_rank"] is None
+
+
 def test_gold_policy_dropped_at_cards_misses_only_card():
     result = compute_retrieval_metrics(GOLD, metadata(card_policy_nos=["TEST-0002"]))
 
@@ -104,6 +120,7 @@ def test_empty_retrieval_leaves_retrieval_and_candidate_metrics_null():
 
     assert result["retrieval_hit"] is None
     assert result["candidate_hit"] is None
+    assert result["candidate_rank"] is None
     assert result["rank"] is None
     assert result["reciprocal_rank"] is None
     assert [result[f"hit_at_{k}"] for k in (1, 3, 5, 10)] == [None, None, None, None]

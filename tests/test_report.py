@@ -263,6 +263,28 @@ def test_render_counts_samples_by_dropped_stage():
         assert f"| {cause} | 1 |" in section
 
 
+def test_render_counts_rank_moves_by_rerank():
+    data = rag_report_data(
+        retrieval(1, 1, 1, rank=4) | {"candidate_rank": 2},
+        retrieval(1, 1, 1, rank=1) | {"candidate_rank": 1},
+        retrieval(0, 1, 1, rank=2) | {"candidate_rank": 5},
+        retrieval(0, 0, 1, rank=3) | {"candidate_rank": None},
+        retrieval(0, 0, 0) | {"candidate_rank": None},
+    )
+
+    text = render(data)
+
+    section = text.split("### 후보 재정렬 (검색 순위 → 후보 순위, 검색된 샘플 4건)")[1].split("\n## ")[0]
+    for move in ("올라감", "그대로", "내려감", "밀려남"):
+        assert f"| {move} | 1 |" in section
+
+
+def test_render_without_candidate_rank_has_no_rerank_table():
+    text = render(rag_report_data(retrieval(1, 1, 1, rank=1)))
+
+    assert "## 검색 적중률" in text and "### 후보 재정렬" not in text
+
+
 def test_render_without_retrieval_metrics_has_no_retrieval_section():
     text = render(report_data())
 

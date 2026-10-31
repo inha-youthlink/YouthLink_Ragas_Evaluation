@@ -29,6 +29,8 @@ RETRIEVAL_ROWS = (
 # 라우팅 보고서의 유형 표시 순서 (PRD "라우팅 평가")
 ROUTING_INTENTS = ("policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear")
 DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가")
+# RAG 규칙 기반 재정렬(상태 감점·카테고리 가산·같은 이름 제거·지역 우선) 전후 정답 정책 순위 변화
+RERANK_MOVES = ("올라감", "그대로", "내려감", "밀려남")
 # 되묻기 이유 (RAG trace.clarify_reason). 프로필과 질문 내용이 맞으면 조건 되묻기는 0건이어야 한다
 CLARIFY_HANDLER = "clarify"
 CLARIFY_REASONS = (("condition", "조건 되묻기"), ("policy", "정책 되묻기"))
@@ -258,14 +260,30 @@ def _retrieval(samples: Sequence[Mapping[str, Any]]) -> str:
         rows.append([stage, name, _score(sum(values) / len(values)) if values else "-", len(values)])
     causes = [_drop_cause(m) for m in metrics]
     title = f"## 검색 적중률 (검색 결과가 저장된 샘플 {len(metrics)}건)"
-    return "\n\n".join(
-        [
-            title,
-            _table(["단계", "지표", "평균", "계산 대상 샘플"], rows),
-            "### 정답 정책이 빠진 단계",
-            _table(["원인", "샘플 수"], [[cause, causes.count(cause)] for cause in DROP_CAUSES]),
+    parts = [
+        title,
+        _table(["단계", "지표", "평균", "계산 대상 샘플"], rows),
+        "### 정답 정책이 빠진 단계",
+        _table(["원인", "샘플 수"], [[cause, causes.count(cause)] for cause in DROP_CAUSES]),
+    ]
+    # candidate_rank가 없던 때의 run은 재정렬 표를 만들지 않는다
+    moves = [move for m in metrics if (move := _rerank_move(m))]
+    if moves:
+        parts += [
+            f"### 후보 재정렬 (검색 순위 → 후보 순위, 검색된 샘플 {len(moves)}건)",
+            _table(["변화", "샘플 수"], [[move, moves.count(move)] for move in RERANK_MOVES]),
         ]
-    )
+    return "\n\n".join(parts)
+
+
+def _rerank_move(m: Mapping[str, Any]) -> str | None:
+    # 정답이 검색됐고 후보 목록이 있는 샘플만. 후보에 없으면 재정렬이 6개 밖으로 밀어낸 것
+    if "candidate_rank" not in m or m.get("rank") is None or m.get("candidate_hit") is None:
+        return None
+    before, after = m["rank"], m["candidate_rank"]
+    if after is None:
+        return "밀려남"
+    return "올라감" if after < before else "그대로" if after == before else "내려감"
 
 
 def _drop_cause(m: Mapping[str, Any]) -> str:

@@ -23,6 +23,8 @@ def compute_retrieval_metrics(policy_no: str, metadata: Mapping[str, Any]) -> di
         "card_hit": _contains(card_policy_nos, policy_no),
         # 검색이 없으면 후보도 검색 결과에서 나오지 않으므로 함께 NULL
         "candidate_hit": _contains(candidate_nos, policy_no) if searched else None,
+        # RAG 규칙 기반 재정렬 뒤 후보 안 순위. rank(재정렬 전)와 비교해 재정렬 효과를 본다
+        "candidate_rank": _position(candidate_nos, policy_no) if searched else None,
         "retrieval_hit": int(rank is not None) if searched else None,
         # null = 필터를 걸지 않음, 키 없음 = 목록을 주기 전 RAG
         "filter_hit": _contains(filtered_policy_nos, policy_no),
@@ -37,6 +39,10 @@ def _policy_rank(policy_no: str, chunks: list[Mapping[str, Any]]) -> int | None:
     ordered = sorted(chunks, key=lambda c: c["score"], reverse=True)
     policies = list(dict.fromkeys(c["policy_no"] for c in ordered))
     return policies.index(policy_no) + 1 if policy_no in policies else None
+
+
+def _position(policy_nos: list[str] | None, policy_no: str) -> int | None:
+    return policy_nos.index(policy_no) + 1 if policy_nos and policy_no in policy_nos else None
 
 
 def _contains(policy_nos: list[str] | None, policy_no: str) -> int | None:
