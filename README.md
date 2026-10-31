@@ -134,7 +134,7 @@ Claude Code에서 "golden_candidates 검수해줘"처럼 요청하면 후보를 
 
 ## 결과 확인
 
-채점 결과는 DB에 저장된다. `run`이 출력한 `run_id`로 마크다운 성적표를 만들거나 SQL로 직접 조회한다.
+채점 결과는 DB에 저장된다. 운영(K8s Job)에서 돌렸으면 evaluate workflow 실행 화면의 첨부 파일(`eval-report-*`)에서 성적표를 받는다 (`run --report`가 로그로 내보낸 성적표를 workflow가 파일로 만듦). 로컬에서는 `run`이 출력한 `run_id`로 성적표를 만들거나 SQL로 직접 조회한다.
 
 ```bash
 # results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md 생성 (LLM 비용 없음)

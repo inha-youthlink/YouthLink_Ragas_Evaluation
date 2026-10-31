@@ -77,6 +77,15 @@ class ReportData(NamedTuple):
 
 
 def report(run_id: UUID, out_dir: str | Path = DEFAULT_OUT_DIR) -> Path:
+    relative, text = report_text(run_id)
+    path = Path(out_dir) / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def report_text(run_id: UUID) -> tuple[Path, str]:
+    """성적표 (out_dir 기준 상대 경로, 마크다운). K8s Job은 파일 대신 로그로 내보낸다."""
     settings = get_settings()
     try:
         conn = psycopg.connect(settings.database_url.get_secret_value(), connect_timeout=DB_CONNECT_TIMEOUT_SECONDS)
@@ -86,10 +95,7 @@ def report(run_id: UUID, out_dir: str | Path = DEFAULT_OUT_DIR) -> Path:
     with conn:
         conn.read_only = True
         data = load_report_data(conn, run_id)
-    path = report_path(data.run, Path(out_dir))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(data), encoding="utf-8")
-    return path
+    return report_path(data.run, Path()), render(data)
 
 
 def load_report_data(conn: psycopg.Connection, run_id: UUID) -> ReportData:

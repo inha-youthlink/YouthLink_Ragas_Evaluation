@@ -116,6 +116,7 @@
 - `python -m ragas_eval run --golden datasets/golden_v1.jsonl --resume <run_id>`
 - `python -m ragas_eval route --routing datasets/routing_v1.jsonl`
 - `python -m ragas_eval report --run <run_id>`
+- `python -m ragas_eval run --report`, `route --report`: 끝나면 성적표를 구분선(`===== REPORT BEGIN <파일 이름> =====` ~ `===== REPORT END =====`)과 함께 표준 출력으로 내보낸다. K8s Job은 파일이 남지 않아 evaluate workflow가 로그에서 잘라 Actions 첨부 파일로 올린다
 
 ## 실행 환경
 
@@ -173,3 +174,4 @@
 - [x] 5-2. `report` 마크다운 성적표 + 테스트 (`results/`, `baseline` 비교, `report` 서브커맨드)
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
 - [x] 5-4. `run --golden`·`route --routing` 생략 시 번호가 가장 큰 확정 데이터셋 자동 선택 (새 데이터셋은 이미지 재빌드만으로 Job에 반영) + 테스트
+- [x] 5-5. `run --report`·`route --report`: 끝나면 성적표를 구분선과 함께 표준 출력 (evaluate workflow가 Actions 첨부 파일로 저장. 미완료 run도 출력) + 테스트

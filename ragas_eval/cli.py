@@ -10,6 +10,12 @@ from ragas_eval.report import report
 from ragas_eval.runner import runner
 
 
+# K8s Job 로그에서 evaluate workflow가 성적표를 잘라 파일로 만드는 구분선
+REPORT_BEGIN = "===== REPORT BEGIN {name} ====="
+REPORT_END = "===== REPORT END ====="
+REPORT_HELP = "끝나면 성적표를 구분선과 함께 표준 출력으로 내보냄 (K8s Job용)"
+
+
 def positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -39,15 +45,26 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--offline", action="store_true", help="RAG 대신 ground_truth·reference_contexts로 채점 경로 검증")
     mode.add_argument("--baseline", action="store_true", help="RAG 없이 BASELINE_MODEL에 직접 질문 (할루시네이션 기준선)")
     run_parser.add_argument("--resume", metavar="RUN_ID", help="RUNNING으로 남은 run의 미완료 샘플만 이어서 실행")
+    run_parser.add_argument("--report", action="store_true", help=REPORT_HELP)
 
     route_parser = sub.add_parser("route", help="확정 라우팅 데이터셋으로 질문 유형 분류 평가")
     route_parser.add_argument("--routing", help="생략하면 datasets/의 routing_vN.jsonl 중 N이 가장 큰 파일")
+    route_parser.add_argument("--report", action="store_true", help=REPORT_HELP)
 
     report_parser = sub.add_parser("report", help="run 결과를 마크다운 성적표로 저장")
     report_parser.add_argument("--run", required=True, type=UUID, metavar="RUN_ID")
     report_parser.add_argument("--out-dir", default=report.DEFAULT_OUT_DIR)
 
     return parser
+
+
+def print_reports(run_ids: Sequence[UUID]) -> None:
+    # 미완료 run도 내보낸다. 성적표에 "집계 전"으로 표시되어 어디서 멈췄는지 볼 수 있다
+    for run_id in run_ids:
+        relative, text = report.report_text(run_id)
+        print(REPORT_BEGIN.format(name=relative.name))
+        print(text, end="")
+        print(REPORT_END)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -73,6 +90,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         for o in outcomes:
             print(f"run {o.run_id}: {o.status} (미응답 {o.pending_answer}건, 미채점 {o.pending_scores}건)")
+        if args.report:
+            print_reports([o.run_id for o in outcomes])
         # 미완료 run이 있으면 Job이 실패로 보이게 해 --resume이 필요함을 드러낸다
         if any(o.status != "SUCCEEDED" for o in outcomes):
             raise SystemExit(1)
@@ -81,6 +100,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(f"데이터셋: {routing}")
         o = runner.route(routing)
         print(f"run {o.run_id}: {o.status} (미응답 {o.pending_answer}건)")
+        if args.report:
+            print_reports([o.run_id])
         if o.status != "SUCCEEDED":
             raise SystemExit(1)
     elif args.command == "report":

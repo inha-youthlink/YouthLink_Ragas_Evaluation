@@ -124,6 +124,48 @@ def test_main_exits_nonzero_when_run_incomplete(monkeypatch, capsys):
     assert "RUNNING" in capsys.readouterr().out
 
 
+def fake_report_text(run_id):
+    return Path("golden_v1") / f"golden_v1_rag_r1_{run_id}.md", f"# 성적표 {run_id}\n"
+
+
+def test_main_run_with_report_prints_report_between_markers(monkeypatch, capsys):
+    monkeypatch.setattr(runner, "run", lambda **kwargs: [outcome("SUCCEEDED")])
+    monkeypatch.setattr(report, "report_text", fake_report_text)
+
+    main(["run", "--report"])
+
+    out = capsys.readouterr().out
+    begin = f"===== REPORT BEGIN golden_v1_rag_r1_{UUID(int=7)}.md =====\n"
+    assert f"{begin}# 성적표 {UUID(int=7)}\n===== REPORT END =====\n" in out
+
+
+def test_main_run_with_report_prints_report_before_failing_incomplete_run(monkeypatch, capsys):
+    monkeypatch.setattr(runner, "run", lambda **kwargs: [outcome("RUNNING", pending_answer=2)])
+    monkeypatch.setattr(report, "report_text", fake_report_text)
+
+    with pytest.raises(SystemExit) as exc:
+        main(["run", "--report"])
+
+    assert exc.value.code == 1
+    assert "===== REPORT END =====" in capsys.readouterr().out
+
+
+def test_main_run_without_report_does_not_read_report(monkeypatch):
+    monkeypatch.setattr(runner, "run", lambda **kwargs: [outcome("SUCCEEDED")])
+    monkeypatch.setattr(report, "report_text", lambda run_id: pytest.fail("report_text 호출됨"))
+
+    main(["run", "--golden", "datasets/golden_v1.jsonl"])
+
+
+def test_main_route_with_report_prints_report(monkeypatch, capsys):
+    monkeypatch.setattr(runner, "route", lambda path: outcome("SUCCEEDED"))
+    monkeypatch.setattr(report, "report_text", fake_report_text)
+
+    main(["route", "--routing", "datasets/routing_v1.jsonl", "--report"])
+
+    assert "===== REPORT BEGIN" in capsys.readouterr().out
+
+
 def test_main_prints_generate_counts(monkeypatch, capsys):
     calls = []
 

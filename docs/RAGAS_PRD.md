@@ -284,7 +284,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | --- | --- |
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
-| 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
+| 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]`. K8s Job은 `run --report`로 성적표를 표준 출력에 내보내고 evaluate workflow가 Actions 첨부 파일로 저장 (`docs/PRD.md` "명령어") |
 | 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·RAG 임베딩 모델·프롬프트 버전. `rag`는 샘플의 답변 프롬프트 조합을 모아 보임), 지표 평균 7개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수. 샘플별 점수는 보고서에 넣지 않고 DB에서 조회 (README "결과 확인" 쿼리) |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
