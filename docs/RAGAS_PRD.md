@@ -225,7 +225,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | 채점 | 4단계를 건너뜀. RAGAS 지표·검색 적중률 모두 NULL, `metadata.errors`에 남기지 않음 (실패가 아님) |
 | 집계 | `avg_*`는 NULL을 빼므로 자동 제외. `sample_count`에는 포함 |
 | 재개 | 지표 전부 NULL이어도 채점 대상으로 보지 않음 |
-| 보고서 | "되묻기 응답" 섹션에 이유별 건수·목록. 점수 낮은 샘플에서 제외 |
+| 보고서 | "되묻기 응답" 섹션에 이유별 건수·목록 |
 
 프로필이 질문 내용과 맞게 만들어진 데이터셋이라면 조건 되묻기는 0건이어야 한다. 나오면 프로필(데이터셋) 또는 RAG의 조건 추출을 확인한다.
 
@@ -238,7 +238,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | 채점 | 답변 지표(`answer_relevancy`·`factual_correctness`·`reference_faithfulness`·`answer_coverage`)만. 검색 결과로 재는 `context_precision`·`context_recall`·`faithfulness`는 NULL, `metadata.errors`에 남기지 않음. 검색 결과 0건(`contexts` = `[]`, 검색 핸들러)은 그대로 채점 |
 | 검색 적중률 | 계산하지 않음 (검색하지 않음) |
 | 재개 | 저장된 `metadata.handler`로 같은 기준 적용 |
-| 보고서 | "짧은 답변" 섹션에 목록. 답변 지표가 있어 점수 낮은 샘플에는 포함 |
+| 보고서 | "짧은 답변" 섹션에 목록 |
 
 ## 오프라인 모드 (`run --offline`)
 
@@ -285,7 +285,7 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 | 목적 | 채점 결과를 노션·디스코드로 공유 |
 | 입력 | `ragas_evaluation_run`, `ragas_evaluation_samples` (읽기만) |
 | 명령 | `python -m ragas_eval report --run <run_id> [--out-dir results]` |
-| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·RAG 임베딩 모델·프롬프트 버전. `rag`는 샘플의 답변 프롬프트 조합을 모아 보임), 지표 평균 6개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수, `factual_correctness` 낮은 샘플 10건 (되묻기 제외) |
+| 내용 | 요약 (상태·시각·샘플 수), 실행 조건 (모델·검색·RAG 임베딩 모델·프롬프트 버전. `rag`는 샘플의 답변 프롬프트 조합을 모아 보임), 지표 평균 7개, 검색 적중률 (`rag` run만, `docs/RETRIEVE_PRD.md`), 되묻기 응답 (있을 때만), 짧은 답변 (있을 때만), 같은 `dataset_version` 완료 run의 모드별 평균과 `rag - baseline` 차이, 미응답·채점 실패 수. 샘플별 점수는 보고서에 넣지 않고 DB에서 조회 (README "결과 확인" 쿼리) |
 | 출력 | `results/<dataset_version>/<dataset_version>_<mode>_r<repeat_no>_<run_id>.md` (같은 run은 덮어씀) |
 | 노션·디스코드 | 추후 요청 시 연동 (토큰·웹훅 URL은 `.env` → `Settings`) |
 | 비용 | LLM 호출 없음 |

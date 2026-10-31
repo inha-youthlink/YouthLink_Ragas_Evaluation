@@ -14,9 +14,7 @@ from ragas_eval.scorer.scorer import METRIC_NAMES
 
 DEFAULT_OUT_DIR = "results"
 DB_CONNECT_TIMEOUT_SECONDS = 10
-LOW_SAMPLE_COUNT = 10
 QUESTION_MAX_CHARS = 60
-ANSWER_MAX_CHARS = 200
 # baseline 대비 rag 개선폭 (PRD "베이스라인 모드" 비교 지표 포함 7개 전부)
 COMPARE_MODES = ("baseline", "rag")
 # 정책을 좁히는 순서대로 (단계, 표시 이름, metadata.retrieval 키). MRR은 역순위의 평균
@@ -128,7 +126,6 @@ def render(data: ReportData) -> str:
         _short(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
-        _low_samples(data.samples),
     ]
     return "\n\n".join(section for section in sections if section) + "\n"
 
@@ -347,37 +344,6 @@ def _progress(samples: Sequence[Mapping[str, Any]]) -> str:
         ["평균 응답 시간(ms)", round(sum(latencies) / len(latencies)) if latencies else "-"],
     ]
     return "## 응답·채점 현황\n\n" + _table(["항목", "값"], rows)
-
-
-def _low_samples(samples: Sequence[Mapping[str, Any]]) -> str:
-    # 채점 실패(NULL)를 먼저, 그다음 factual_correctness 낮은 순
-    answered = [s for s in samples if s["answer"] is not None and not _is_clarify(s)]
-    ranked = sorted(answered, key=lambda s: (s["factual_correctness"] is not None, s["factual_correctness"] or 0))
-    headers = [
-        "sample_id",
-        "policy_no",
-        "질문",
-        "답변",
-        "factual_correctness",
-        "answer_coverage",
-        "reference_faithfulness",
-        "실패 지표",
-    ]
-    rows = [
-        [
-            s["sample_id"],
-            s["policy_no"],
-            _text(s["question"], QUESTION_MAX_CHARS),
-            _text(s["answer"], ANSWER_MAX_CHARS),
-            _score(s["factual_correctness"]),
-            _score(s["answer_coverage"]),
-            _score(s["reference_faithfulness"]),
-            _text(", ".join(f"{k}:{v}" for k, v in (s["errors"] or {}).items())),
-        ]
-        for s in ranked[:LOW_SAMPLE_COUNT]
-    ]
-    title = f"## 점수 낮은 샘플 (factual_correctness 낮은 순, 최대 {LOW_SAMPLE_COUNT}건)"
-    return f"{title}\n\n" + (_table(headers, rows) if rows else "응답한 샘플 없음")
 
 
 def _table(headers: Sequence[Any], rows: Sequence[Sequence[Any]]) -> str:

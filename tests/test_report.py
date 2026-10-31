@@ -138,7 +138,7 @@ def test_render_without_both_modes_has_no_difference_column():
     assert "| factual_correctness | 0.950 |" in text
 
 
-def test_render_lists_lowest_samples_first_with_pending_counts():
+def test_render_counts_pending_answers_and_score_failures():
     samples = [
         sample_row("single-000001", Decimal("0.900")),
         sample_row("single-000002", Decimal("0.100"), errors={"faithfulness": "TimeoutError"}),
@@ -147,11 +147,11 @@ def test_render_lists_lowest_samples_first_with_pending_counts():
 
     text = render(report_data(samples=samples))
 
-    low = text.split("## 점수 낮은 샘플")[1]
-    assert low.index("single-000002") < low.index("single-000001")
-    assert "single-000003" not in low
     assert "| 미응답 | 1 |" in text and "| 채점 실패 지표가 있는 샘플 | 1 |" in text
-    assert "TimeoutError" in low
+
+
+def test_render_has_no_low_samples_section():
+    assert "## 점수 낮은 샘플" not in render(report_data())
 
 
 def clarify_row(sample_id, reason):
@@ -159,7 +159,7 @@ def clarify_row(sample_id, reason):
     return sample_row(sample_id, None, answer="되묻기 문구", handler="clarify", clarify_reason=reason, **unscored)
 
 
-def test_render_counts_clarify_samples_apart_from_low_samples():
+def test_render_counts_clarify_samples_by_reason():
     samples = [
         sample_row("single-000001", Decimal("0.900")),
         clarify_row("single-000002", "condition"),
@@ -171,8 +171,6 @@ def test_render_counts_clarify_samples_apart_from_low_samples():
     clarify = text.split("## 되묻기 응답 (채점 제외 2건)")[1].split("\n## ")[0]
     assert "| 조건 되묻기 (condition) | 1 |" in clarify and "| 정책 되묻기 (policy) | 1 |" in clarify
     assert "single-000002" in clarify and "single-000003" in clarify
-    low = text.split("## 점수 낮은 샘플")[1]
-    assert "single-000002" not in low and "single-000001" in low
 
 
 def test_render_without_clarify_has_no_clarify_section():
@@ -181,7 +179,7 @@ def test_render_without_clarify_has_no_clarify_section():
     assert "## 되묻기 응답" not in text
 
 
-def test_render_lists_short_answers_and_keeps_them_in_low_samples():
+def test_render_lists_short_answers():
     samples = [
         sample_row("single-000001", Decimal("0.900")),
         sample_row("single-000002", Decimal("0.100"), answer="인사 답변", handler="short"),
@@ -191,35 +189,15 @@ def test_render_lists_short_answers_and_keeps_them_in_low_samples():
 
     short = text.split("## 짧은 답변 (인사·범위 밖으로 분류, 검색 지표 제외 1건)")[1].split("\n## ")[0]
     assert "single-000002" in short and "single-000001" not in short
-    assert "single-000002" in text.split("## 점수 낮은 샘플")[1]
 
 
 def test_render_without_short_answers_has_no_short_section():
     assert "## 짧은 답변" not in render(report_data())
 
 
-def test_render_shows_answer_coverage_in_low_samples():
-    samples = [sample_row("single-000001", Decimal("0.100"), answer_coverage=Decimal("1.000"))]
-
-    text = render(report_data(samples=samples))
-
-    low = text.split("## 점수 낮은 샘플")[1]
-    assert "| factual_correctness | answer_coverage | reference_faithfulness |" in low
-    assert "| 0.100 | 1.000 | 0.500 |" in low
-
-
-def test_render_shows_truncated_answer_in_low_samples():
-    samples = [sample_row("single-000001", Decimal("0.100"), answer="가" * 250)]
-
-    text = render(report_data(samples=samples))
-
-    low = text.split("## 점수 낮은 샘플")[1]
-    assert "| 답변 |" in low
-    assert "가" * 200 + "…" in low and "가" * 201 not in low
-
-
 def test_render_escapes_table_breaking_characters():
-    samples = [sample_row("single-000001", Decimal("0.100"), question="소득 | 조건\n알려줘")]
+    # 질문이 표에 나오는 짧은 답변 섹션으로 확인한다
+    samples = [sample_row("single-000001", Decimal("0.100"), question="소득 | 조건\n알려줘", handler="short")]
 
     text = render(report_data(samples=samples))
 
@@ -329,7 +307,7 @@ def test_render_routing_uses_routing_title_and_skips_ragas_sections():
     text = render(routing_report_data())
 
     assert text.startswith("# 라우팅 평가 결과: golden_v1 / routing / 반복 2")
-    for ragas_only in ("## 지표 평균", "## 모드별 비교", "## 점수 낮은 샘플", "## 검색 적중률", "채점 모델"):
+    for ragas_only in ("## 지표 평균", "## 모드별 비교", "## 검색 적중률", "채점 모델"):
         assert ragas_only not in text
     assert "| 프롬프트 버전 | rag-v1 |" in text
 
