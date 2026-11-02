@@ -21,7 +21,7 @@
 | --- | --- | --- | --- | --- |
 | 1. 질문 분석 | 질문 유형 분류, 검색어·조건 추출 | `intent_correct`, 분석 실패율 | `trace.analysis.sub_queries[].intent`, `fallback_reason` | 라우팅 (`routing_vN`) |
 | 2. 1차 필터 | 조건으로 정책 거르기 | `filter_hit` | `trace.filtered_policy_nos` | 검색 적중률 (`golden_vN`) |
-| 3. 검색 | 청크 검색, 정책 순위 | `retrieval_hit`, `hit_at_k` (k = 1, 3, 5, 10), MRR | `trace.retrieved_chunks` | 검색 적중률 (`golden_vN`) |
+| 3. 검색 | 청크 검색, 정책 순위 | `retrieval_hit`, `hit_at_k` (k = 1, 3, 6, 10), MRR | `trace.retrieved_chunks` | 검색 적중률 (`golden_vN`) |
 | 4. 후보 | 검색된 정책을 묶고 규칙 기반으로 다시 정렬해서 후보 선택 | `candidate_hit`, `candidate_rank` | `trace.cards.candidate_nos` | 검색 적중률 (`golden_vN`) |
 | 5. 카드 | LLM이 후보 중 보여 줄 카드 선택 | **`card_hit`** (검색 적중률 주 지표) | `policies[].policy_no` | 검색 적중률 (`golden_vN`) |
 | 6. 근거 전달 | 후보 정책 원문을 LLM에 근거로 넘김 | Context Precision, Context Recall | `trace.contexts` | 답변 품질 (`golden_vN`) |
@@ -46,7 +46,7 @@ RAG는 정책을 1차 필터 → 검색 → 후보 → 카드 순서로 좁힌�
 | `candidate_rank` | 후보 목록 안에서 정답 정책의 순위 (없으면 NULL) | 진단용. 재정렬 전 `rank`와 비교해 규칙 기반 재정렬 효과를 봄 ("후보 재정렬") |
 | `retrieval_hit` | 정답 정책 청크가 검색 결과(`trace.retrieved_chunks`)에 있으면 1 | 진단용 |
 | `filter_hit` | 정답 정책이 1차 필터 통과 목록(`trace.filtered_policy_nos`)에 있으면 1 | 진단용. 검색에서 빠졌을 때 필터 탓인지 구분 |
-| `hit_at_k` (k = 1, 3, 5, 10), MRR | 검색 결과의 정책 순위에서 정답 위치 | 청킹 방식 비교 |
+| `hit_at_k` (k = 1, 3, 6, 10), MRR | 검색 결과의 정책 순위에서 정답 위치 | 청킹 방식 비교 |
 
 | 카드 | 후보 | 검색 | 필터 | 원인 |
 | --- | --- | --- | --- | --- |
@@ -124,7 +124,7 @@ RAG는 검색된 정책을 벡터 점수로 정렬한 뒤 규칙으로 다시 �
 ## 결과 저장
 
 - 계산한 지표는 `ragas_evaluation_samples.metadata`에 저장한다 (스키마 변경 없음)
-- 검색 적중률: `rag` run에서 응답 저장과 같은 UPDATE로 `metadata.retrieval` = `{card_hit, candidate_hit, candidate_rank, retrieval_hit, filter_hit, rank, hit_at_1, hit_at_3, hit_at_5, hit_at_10, reciprocal_rank}`. `baseline`·`offline`은 키를 만들지 않는다
+- 검색 적중률: `rag` run에서 응답 저장과 같은 UPDATE로 `metadata.retrieval` = `{card_hit, candidate_hit, candidate_rank, retrieval_hit, filter_hit, rank, hit_at_1, hit_at_3, hit_at_6, hit_at_10, reciprocal_rank}`. `baseline`·`offline`은 키를 만들지 않는다
 - 라우팅: `route` run은 `mode = 'routing'`, `judge_model`·`embedding_model` = `'none'`, RAG 설정은 `rag`와 같이 기록. 샘플 `answer` = RAG 답변, `metadata.routing` = `{expected_intent, predicted_intent, intent_correct, fallback_reason, prompt_version}`. 모두 응답하면 `run.metadata.routing` = `{sample_count, accuracy, fallback_rate, by_intent, confusion, analysis_prompt_versions}`로 집계하고 SUCCEEDED
 - 라우팅 채점: 분석 실패(`fallback_reason`)는 유형이 비어 `intent_correct` = 0, 응답에 `analysis`가 없으면 NULL. 미응답이 남으면 RUNNING으로 두고 새 `route`로 다시 실행한다 (재개 없음)
 

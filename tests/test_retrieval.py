@@ -71,7 +71,7 @@ def test_gold_policy_not_retrieved_has_no_rank_and_zero_hits():
     assert result["retrieval_hit"] == 0
     assert result["rank"] is None
     assert result["reciprocal_rank"] == 0.0
-    assert [result[f"hit_at_{k}"] for k in (1, 3, 5, 10)] == [0, 0, 0, 0]
+    assert [result[f"hit_at_{k}"] for k in (1, 3, 6, 10)] == [0, 0, 0, 0]
 
 
 def test_policy_rank_counts_each_policy_once_in_score_order():
@@ -86,7 +86,17 @@ def test_policy_rank_counts_each_policy_once_in_score_order():
 
     assert result["rank"] == 3
     assert result["reciprocal_rank"] == pytest.approx(1 / 3)
-    assert [result[f"hit_at_{k}"] for k in (1, 3, 5, 10)] == [0, 1, 1, 1]
+    assert [result[f"hit_at_{k}"] for k in (1, 3, 6, 10)] == [0, 1, 1, 1]
+
+
+@pytest.mark.parametrize(("gold_rank", "hit_at_6"), [(6, 1), (7, 0)])
+def test_hit_at_6_matches_candidate_count_boundary(gold_rank, hit_at_6):
+    chunks = [chunk(f"TEST-OTHER-{i}", 0.99 - i / 100) for i in range(1, gold_rank)]
+    chunks.append(chunk(GOLD, 0.5))
+
+    result = compute_retrieval_metrics(GOLD, metadata(retrieved_chunks=chunks))
+
+    assert (result["rank"], result["hit_at_6"]) == (gold_rank, hit_at_6)
 
 
 def test_split_search_chunks_are_merged_by_score_not_response_order():
@@ -123,7 +133,7 @@ def test_empty_retrieval_leaves_retrieval_and_candidate_metrics_null():
     assert result["candidate_rank"] is None
     assert result["rank"] is None
     assert result["reciprocal_rank"] is None
-    assert [result[f"hit_at_{k}"] for k in (1, 3, 5, 10)] == [None, None, None, None]
+    assert [result[f"hit_at_{k}"] for k in (1, 3, 6, 10)] == [None, None, None, None]
     assert result["card_hit"] == 1
 
 

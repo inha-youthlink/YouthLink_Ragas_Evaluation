@@ -11,6 +11,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 
 from ragas_eval.config import get_settings
+from ragas_eval.retrieval.retrieval import HIT_AT_K
 from ragas_eval.scorer.scorer import METRIC_NAMES
 
 DEFAULT_OUT_DIR = "results"
@@ -22,7 +23,7 @@ COMPARE_MODES = ("baseline", "rag")
 RETRIEVAL_ROWS = (
     ("1차 필터", "filter_hit", "filter_hit"),
     ("검색", "retrieval_hit", "retrieval_hit"),
-    *(("검색", f"hit_at_{k}", f"hit_at_{k}") for k in (1, 3, 5, 10)),
+    *(("검색", f"hit_at_{k}", f"hit_at_{k}") for k in HIT_AT_K),
     ("검색", "MRR", "reciprocal_rank"),
     ("후보", "candidate_hit", "candidate_hit"),
     ("카드", "card_hit", "card_hit"),

@@ -273,7 +273,7 @@ def test_render_marks_unfinished_run():
 
 
 def retrieval(card, candidate, retrieved, filtered=None, rank=None):
-    hits = {f"hit_at_{k}": None if retrieved is None else int(rank is not None and rank <= k) for k in (1, 3, 5, 10)}
+    hits = {f"hit_at_{k}": None if retrieved is None else int(rank is not None and rank <= k) for k in (1, 3, 6, 10)}
     reciprocal = None if retrieved is None else (1 / rank if rank else 0.0)
     return {
         "card_hit": card,
@@ -302,7 +302,7 @@ def test_render_shows_retrieval_rates_by_stage():
     assert "| 1차 필터 | filter_hit | 1.000 | 1 |" in section
     assert "| 검색 | retrieval_hit | 1.000 | 2 |" in section
     assert "| 검색 | hit_at_1 | 0.500 | 2 |" in section
-    assert "| 검색 | hit_at_5 | 1.000 | 2 |" in section
+    assert "| 검색 | hit_at_6 | 1.000 | 2 |" in section
     assert "| 검색 | MRR | 0.625 | 2 |" in section
     assert "| 후보 | candidate_hit | 1.000 | 2 |" in section
     assert "| 카드 | card_hit | 0.500 | 2 |" in section

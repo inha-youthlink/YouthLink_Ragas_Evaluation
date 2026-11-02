@@ -2,7 +2,8 @@
 from collections.abc import Mapping
 from typing import Any
 
-HIT_AT_K = (1, 3, 5, 10)
+# RAG 개수에 맞춘 구간: 1 맨 위, 3 카드 최대 개수, 6 LLM에 넘기는 후보 수(CARD_CANDIDATES, candidate_hit과 같은 기준), 10 참고
+HIT_AT_K = (1, 3, 6, 10)
 
 
 def compute_retrieval_metrics(policy_no: str, metadata: Mapping[str, Any]) -> dict[str, Any]:
