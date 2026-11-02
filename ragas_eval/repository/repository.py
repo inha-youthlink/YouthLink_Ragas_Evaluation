@@ -267,6 +267,8 @@ def update_answer(
     patch: dict[str, Any] = {}
     if result.tokens:
         patch["tokens"] = result.tokens
+    if result.latency_stages:
+        patch["latency_stages"] = result.latency_stages
     if result.retrieved_chunks:
         patch["retrieved_chunks"] = result.retrieved_chunks
     patch |= result.trace_details

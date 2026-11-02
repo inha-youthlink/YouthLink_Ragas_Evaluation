@@ -106,6 +106,21 @@ def test_call_pipeline_maps_answer_and_trace(rag_payload):
     assert (result.chat_model, result.retriever, result.top_k) == ("test-chat-model", "vector", 10)
 
 
+def test_latency_stages_keep_stage_times_without_total(rag_payload):
+    result, _ = call_with(rag_payload)
+
+    assert result.latency_stages == {"retrieve": 300, "policy_lookup": 30, "generate": 860}
+
+
+def test_latency_stages_drop_values_that_are_not_non_negative_integers(rag_payload):
+    latency = {"total": 1200, "retrieve": 300, "generate": None, "analyze": -1, "filter": 1.5, "first_token": True}
+    payload = with_trace(rag_payload, latency_ms=latency)
+
+    result, _ = call_with(payload)
+
+    assert result.latency_stages == {"retrieve": 300}
+
+
 def test_contexts_keep_rag_order(rag_payload):
     payload = with_trace(rag_payload, contexts=["정책 1 근거", "정책 2 근거", "정책 3 근거"])
 

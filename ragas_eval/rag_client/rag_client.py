@@ -34,6 +34,8 @@ class RagResult(BaseModel):
     chunks: list[dict[str, Any]]
     retrieved_chunks: list[dict[str, Any]] = Field(default_factory=list)
     latency_ms: int | None = Field(default=None, ge=0, le=PG_INTEGER_MAX)
+    # trace.latency_ms의 total 외 단계별 시간(검색·생성 등). 병목을 보려고 samples.metadata에 남긴다
+    latency_stages: dict[str, int] = Field(default_factory=dict)
     tokens: dict[str, int] = Field(default_factory=dict)
     chat_model: str | None = None
     retriever: str | None = None
@@ -149,6 +151,7 @@ def _to_result(payload: Any) -> RagResult:
         chunks=[{"content": c} for c in trace.contexts],
         retrieved_chunks=payload["trace"]["retrieved_chunks"],
         latency_ms=trace.latency_ms.total,
+        latency_stages=_latency_stages(payload["trace"]["latency_ms"]),
         tokens=tokens,
         chat_model=trace.chat_model,
         retriever=trace.retriever,
@@ -156,3 +159,12 @@ def _to_result(payload: Any) -> RagResult:
         embedding_model=trace.embedding_model,
         trace_details=details,
     )
+
+
+def _latency_stages(latency: Mapping[str, Any]) -> dict[str, int]:
+    # 단계 키는 RAG 핸들러마다 다르고 선택값이라, 0 이상 정수만 남기고 형식이 다르면 버린다
+    return {
+        key: value
+        for key, value in latency.items()
+        if key != "total" and type(value) is int and 0 <= value <= PG_INTEGER_MAX
+    }

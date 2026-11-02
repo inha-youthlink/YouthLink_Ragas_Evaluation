@@ -1,4 +1,5 @@
 # 평가 테이블을 읽어 성적표·모드별 비교를 마크다운으로 results/<dataset_version>/에 저장
+import math
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +37,25 @@ CLARIFY_HANDLER = "clarify"
 CLARIFY_REASONS = (("condition", "조건 되묻기"), ("policy", "정책 되묻기"))
 # 인사·범위 밖으로 분류돼 근거 없이 답한 응답. golden은 정책 질문뿐이라 나오면 질문 분석이 잘못 분류한 것
 SHORT_HANDLER = "short"
+# 응답 시간 분포. 평균만 보면 몇 건의 느린 응답이 가려진다
+LATENCY_PERCENTILES = (50, 95)
+# RAG trace.latency_ms 단계 (실행 순서). first_token만 요청 시작부터 잰 누적값이다. 여기 없는 키는 뒤에 붙인다
+LATENCY_STAGES = (
+    ("analyze", "질문 분석"),
+    ("conditions", "조건 정리"),
+    ("filter", "1차 필터"),
+    ("retrieve", "검색"),
+    ("policy_lookup", "정책 조회"),
+    ("first_token", "첫 글자까지 (요청 시작부터)"),
+    ("generate", "답변 생성"),
+)
+# samples.metadata.tokens 키 (rag_client가 RAG trace에서 옮긴 이름)
+TOKEN_ROWS = (
+    ("prompt_tokens", "답변 입력"),
+    ("completion_tokens", "답변 출력"),
+    ("analysis_prompt_tokens", "질문 분석 입력"),
+    ("analysis_completion_tokens", "질문 분석 출력"),
+)
 
 SELECT_RUN = "SELECT * FROM ragas_evaluation_run WHERE run_id = %(run_id)s"
 
@@ -62,7 +82,9 @@ SELECT_SAMPLES = sql.SQL(
            metadata->'routing' AS routing,
            metadata->>'handler' AS handler,
            metadata->>'clarify_reason' AS clarify_reason,
-           metadata->>'prompt_version' AS prompt_version
+           metadata->>'prompt_version' AS prompt_version,
+           metadata->'latency_stages' AS latency_stages,
+           metadata->'tokens' AS tokens
     FROM ragas_evaluation_samples
     WHERE run_id = %(run_id)s
     ORDER BY sample_id
@@ -134,6 +156,7 @@ def render(data: ReportData) -> str:
         _short(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
         _progress(data.samples),
+        _speed_tokens(data.samples),
     ]
     return "\n\n".join(section for section in sections if section) + "\n"
 
@@ -147,6 +170,7 @@ def _render_routing(data: ReportData) -> str:
         _routing_conditions(run),
         _routing_accuracy(run),
         _routing_progress(data.samples),
+        _speed_tokens(data.samples),
         _routing_wrong_samples(data.samples),
     ]
     return "\n\n".join(section for section in sections if section) + "\n"
@@ -224,11 +248,9 @@ def _routing_accuracy(run: Mapping[str, Any]) -> str:
 def _routing_progress(samples: Sequence[Mapping[str, Any]]) -> str:
     answered = [s for s in samples if s["answer"] is not None]
     unscorable = [s for s in answered if (s.get("routing") or {}).get("intent_correct") is None]
-    latencies = [s["latency_ms"] for s in samples if s["latency_ms"] is not None]
     rows = [
         ["미응답", len(samples) - len(answered)],
         ["채점 불가(analysis 없음)", len(unscorable)],
-        ["평균 응답 시간(ms)", round(sum(latencies) / len(latencies)) if latencies else "-"],
     ]
     return "## 응답 현황\n\n" + _table(["항목", "값"], rows)
 
@@ -361,13 +383,51 @@ def _mode_comparison(dataset_version: str, mode_averages: Sequence[Mapping[str, 
 
 
 def _progress(samples: Sequence[Mapping[str, Any]]) -> str:
-    latencies = [s["latency_ms"] for s in samples if s["latency_ms"] is not None]
     rows = [
         ["미응답", sum(1 for s in samples if s["answer"] is None)],
         ["채점 실패 지표가 있는 샘플", sum(1 for s in samples if s["errors"])],
-        ["평균 응답 시간(ms)", round(sum(latencies) / len(latencies)) if latencies else "-"],
     ]
     return "## 응답·채점 현황\n\n" + _table(["항목", "값"], rows)
+
+
+def _speed_tokens(samples: Sequence[Mapping[str, Any]]) -> str:
+    """응답 시간 분포, 단계별 평균 시간(병목), 토큰 합계. 응답 시간이 하나도 없으면 생략."""
+    latencies = sorted(s["latency_ms"] for s in samples if s["latency_ms"] is not None)
+    if not latencies:
+        return ""
+    rows = [
+        ["평균", round(sum(latencies) / len(latencies))],
+        *([f"p{p}", _percentile(latencies, p)] for p in LATENCY_PERCENTILES),
+        ["최대", latencies[-1]],
+    ]
+    parts = [f"## 응답 시간·토큰 (응답 {len(latencies)}건)", "### 전체 응답 시간 (ms)", _table(["항목", "값"], rows)]
+    # baseline과 단계 시간이 없던 때의 run은 단계 표를 만들지 않는다
+    stages = [s["latency_stages"] for s in samples if s.get("latency_stages")]
+    if stages:
+        extra = sorted({key for stage in stages for key in stage} - {key for key, _ in LATENCY_STAGES})
+        stage_rows = []
+        for key, label in [*LATENCY_STAGES, *((key, key) for key in extra)]:
+            values = [stage[key] for stage in stages if key in stage]
+            if values:
+                stage_rows.append([label, key, round(sum(values) / len(values)), len(values)])
+        parts += ["### 단계별 평균 시간 (ms)", _table(["단계", "trace 키", "평균", "샘플 수"], stage_rows)]
+    tokens = [s["tokens"] for s in samples if s.get("tokens")]
+    if tokens:
+        token_rows = []
+        for key, label in TOKEN_ROWS:
+            values = [t[key] for t in tokens if t.get(key) is not None]
+            if values:
+                token_rows.append([label, sum(values), round(sum(values) / len(values)), len(values)])
+        parts += [
+            "### 토큰 (평가 대상 응답 기준, 채점 LLM 제외)",
+            _table(["구분", "합계", "샘플당 평균", "샘플 수"], token_rows),
+        ]
+    return "\n\n".join(parts)
+
+
+def _percentile(sorted_values: Sequence[int], p: int) -> int:
+    # nearest-rank: 응답의 p%가 이 값 이하
+    return sorted_values[max(math.ceil(p / 100 * len(sorted_values)) - 1, 0)]
 
 
 def _table(headers: Sequence[Any], rows: Sequence[Sequence[Any]]) -> str:

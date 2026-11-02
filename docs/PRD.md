@@ -77,7 +77,7 @@
 | `trace` 필수 키 | `contexts` (list[str]), `retrieved_chunks` (`chunk_id`, `policy_no`, `score`, 선택 `content`), `latency_ms.total`, `tokens.prompt`·`tokens.completion`, `chat_model`, `retriever`, `top_k` |
 | `trace` 선택 키 | `cards` (`candidate_nos` list[str]), `analysis` (`tokens`), `handler` (str), `clarify_reason` (`condition`·`policy`, 되묻기만), `conditions`, `filtered_policy_nos` (list[str] 또는 null, debug 요청에만), `prompt_version` (str, 답변 프롬프트 조각을 +로 이은 값, LLM을 안 부른 응답은 null), `embedding_model` (str), 응답 `policies[].policy_no`. 있으면 형식만 확인 |
 | `retrieved_contexts` | `trace.contexts` 그대로 (RAG가 LLM에 넘긴 정책별 근거 블록, 검색 순위 순). 청크 본문만이 아니라 신청 상태·방법·서류·기관·링크까지 포함해야 Faithfulness가 정확함 |
-| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`clarify_reason`·`conditions`·`filtered_policy_nos`·`prompt_version` = trace 원본 (`prompt_version`은 답변 종류마다 달라 샘플마다), `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만), `metadata.retrieval` = 검색 적중률 계산 결과 (`rag` 모드만, `docs/RETRIEVE_PRD.md` "결과 저장") |
+| 저장 | `samples.contexts` = `[{"content": c} for c in trace.contexts]`, `samples.latency_ms` = `latency_ms.total`, `metadata.latency_stages` = `latency_ms`의 `total` 외 단계별 시간 (0 이상 정수만, 성적표의 단계별 평균 시간), `metadata.tokens` = `{prompt_tokens, completion_tokens}` + 분석 토큰 `{analysis_prompt_tokens, analysis_completion_tokens}`, `metadata.retrieved_chunks` = `trace.retrieved_chunks` 원본, `metadata.cards`·`analysis`·`handler`·`clarify_reason`·`conditions`·`filtered_policy_nos`·`prompt_version` = trace 원본 (`prompt_version`은 답변 종류마다 달라 샘플마다), `metadata.card_policy_nos` = `policies[].policy_no` (`cards`가 있을 때만), `metadata.retrieval` = 검색 적중률 계산 결과 (`rag` 모드만, `docs/RETRIEVE_PRD.md` "결과 저장") |
 | run 기록 | `trace.chat_model`·`retriever`·`top_k` → `RagResult` → `ragas_evaluation_run.rag_chat_model`·`rag_retriever`·`rag_top_k`, `trace.embedding_model` → `run.metadata.rag_embedding_model` (컬럼 `embedding_model`은 채점용이라 구분). 모두 첫 응답 값만 기록 |
 
 ## 코드 구조 (`YouthLink_Ragas_Evaluation/`)
@@ -151,7 +151,7 @@
 | 공유 타입 | 위치 | 사용처 |
 | --- | --- | --- |
 | `GoldenSample` | `dataset/dataset.py` | `generate`, `runner` |
-| `RagResult` (`answer`, `retrieved_contexts`, `chunks`, `retrieved_chunks`, `latency_ms`, `tokens`, `chat_model`, `retriever`, `top_k`) | `rag_client/rag_client.py` | `baseline_client`, `runner` |
+| `RagResult` (`answer`, `retrieved_contexts`, `chunks`, `retrieved_chunks`, `latency_ms`, `latency_stages`, `tokens`, `chat_model`, `retriever`, `top_k`) | `rag_client/rag_client.py` | `baseline_client`, `runner` |
 | `ScoreResult` (지표 6개, `errors`) | `scorer/scorer.py` | `runner`, `repository` |
 
 ## 구현 체크리스트
@@ -175,3 +175,5 @@
 - [ ] 5-3. 노션·디스코드 전송 (요청 시)
 - [x] 5-4. `run --golden`·`route --routing` 생략 시 번호가 가장 큰 확정 데이터셋 자동 선택 (새 데이터셋은 이미지 재빌드만으로 Job에 반영) + 테스트
 - [x] 5-5. `run --report`·`route --report`: 끝나면 성적표를 구분선과 함께 표준 출력 (evaluate workflow가 Actions 첨부 파일로 저장. 미완료 run도 출력) + 테스트
+- [x] 5-6. 응답 시간·토큰 추적: RAG trace의 단계별 시간을 `metadata.latency_stages`에 저장, 성적표에 응답 시간 분포(평균·p50·p95·최대)·단계별 평균 시간·토큰 합계 섹션 (모든 run 종류) + 테스트
+- [ ] 5-7. 토큰 금액 환산 (게이트웨이 모델 단가 확인 후). 채점 LLM 토큰은 아직 기록하지 않음

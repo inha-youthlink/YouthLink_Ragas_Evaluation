@@ -150,6 +150,68 @@ def test_render_counts_pending_answers_and_score_failures():
     assert "| 미응답 | 1 |" in text and "| 채점 실패 지표가 있는 샘플 | 1 |" in text
 
 
+def test_render_shows_latency_distribution():
+    samples = [sample_row(f"single-{i:06d}", None, latency_ms=ms) for i, ms in enumerate([100, 200, 300, 400, 5000])]
+    samples.append(sample_row("single-000009", None, answer=None, latency_ms=None))
+
+    text = render(report_data(samples=samples))
+
+    assert "## 응답 시간·토큰 (응답 5건)" in text
+    assert "| 평균 | 1200 |" in text
+    assert "| p50 | 300 |" in text and "| p95 | 5000 |" in text and "| 최대 | 5000 |" in text
+    assert "평균 응답 시간" not in text
+
+
+def test_render_averages_stage_latency_in_pipeline_order():
+    samples = [
+        sample_row("single-000001", None, latency_stages={"generate": 900, "retrieve": 200, "rerank": 10}),
+        sample_row("single-000002", None, latency_stages={"generate": 1100, "analyze": 400}),
+        sample_row("single-000003", None),
+    ]
+
+    text = render(report_data(samples=samples))
+
+    assert "| 질문 분석 | analyze | 400 | 1 |" in text
+    assert "| 검색 | retrieve | 200 | 1 |" in text
+    assert "| 답변 생성 | generate | 1000 | 2 |" in text
+    # 표에 정해 두지 않은 단계도 빠뜨리지 않고 뒤에 붙인다
+    assert text.index("| analyze |") < text.index("| retrieve |") < text.index("| generate |") < text.index("| rerank |")
+    assert "1차 필터" not in text
+
+
+def test_render_sums_tokens_by_kind():
+    samples = [
+        sample_row("single-000001", None, tokens={"prompt_tokens": 800, "completion_tokens": 40}),
+        sample_row(
+            "single-000002",
+            None,
+            tokens={"prompt_tokens": 1000, "completion_tokens": 60, "analysis_prompt_tokens": 300},
+        ),
+    ]
+
+    text = render(report_data(samples=samples))
+
+    assert "| 답변 입력 | 1800 | 900 | 2 |" in text
+    assert "| 답변 출력 | 100 | 50 | 2 |" in text
+    assert "| 질문 분석 입력 | 300 | 300 | 1 |" in text
+    assert "질문 분석 출력" not in text
+
+
+def test_render_without_stage_latency_or_tokens_has_only_total_latency():
+    text = render(report_data())
+
+    assert "### 전체 응답 시간 (ms)" in text
+    assert "### 단계별 평균 시간" not in text and "### 토큰" not in text
+
+
+def test_render_without_any_latency_has_no_speed_section():
+    samples = [sample_row("single-000001", None, latency_ms=None)]
+
+    text = render(report_data(samples=samples))
+
+    assert "## 응답 시간·토큰" not in text
+
+
 def test_render_has_no_low_samples_section():
     assert "## 점수 낮은 샘플" not in render(report_data())
 
@@ -407,6 +469,14 @@ def test_render_routing_progress_counts_unanswered_and_unscorable_samples():
     assert "| 채점 불가(analysis 없음) | 1 |" in text
 
 
+def test_render_routing_shows_latency_and_stage_section():
+    samples = [routing_sample("route-000001", ["policy_list"], ["policy_list"], 1, latency_stages={"analyze": 700})]
+
+    text = render(routing_report_data(samples=samples))
+
+    assert "## 응답 시간·토큰" in text and "| 질문 분석 | analyze | 700 | 1 |" in text
+
+
 def test_report_path_names_file_by_run_conditions(tmp_path):
     path = report_path(run_row(), tmp_path)
 
@@ -467,6 +537,25 @@ def test_load_report_data_reads_retrieval_metrics(eval_conn, golden_record):
     data = load_report_data(eval_conn, run_id)
 
     assert data.samples[0]["retrieval"] == metrics
+
+
+@pytest.mark.db
+def test_load_report_data_reads_latency_stages_and_tokens(eval_conn, golden_record):
+    version = f"golden_v{uuid4().int % 10**9}"
+    run_id = insert_run(
+        eval_conn, dataset_version=version, repeat_no=1, mode="rag", judge_model="test-judge", embedding_model="test-emb"
+    )
+    sample = GoldenSample.model_validate(golden_record)
+    insert_samples(eval_conn, run_id, [sample])
+    tokens = {"prompt_tokens": 850, "completion_tokens": 40}
+    result = RagResult(
+        answer="답변", retrieved_contexts=[], chunks=[], latency_stages={"retrieve": 300}, tokens=tokens
+    )
+    update_answer(eval_conn, run_id, sample.sample_id, result)
+
+    data = load_report_data(eval_conn, run_id)
+
+    assert (data.samples[0]["latency_stages"], data.samples[0]["tokens"]) == ({"retrieve": 300}, tokens)
 
 
 @pytest.mark.db
