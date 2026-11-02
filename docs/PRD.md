@@ -176,4 +176,5 @@
 - [x] 5-4. `run --golden`·`route --routing` 생략 시 번호가 가장 큰 확정 데이터셋 자동 선택 (새 데이터셋은 이미지 재빌드만으로 Job에 반영) + 테스트
 - [x] 5-5. `run --report`·`route --report`: 끝나면 성적표를 구분선과 함께 표준 출력 (evaluate workflow가 Actions 첨부 파일로 저장. 미완료 run도 출력) + 테스트
 - [x] 5-6. 응답 시간·토큰 추적: RAG trace의 단계별 시간을 `metadata.latency_stages`에 저장, 성적표에 응답 시간 분포(평균·p50·p95·최대)·단계별 평균 시간·토큰 합계 섹션 (모든 run 종류) + 테스트
+- [x] 5-8. golden 정답 정책 점검 SQL (`db/check_golden_v2_policies.sql`, SELECT만): 새 DB 적재 후 평가 전에 정답 정책의 존재·활성·임베딩, 프로필 나이·지역 일치, 마감·같은 이름 공고를 RAG 규칙대로 판정해 v3 필요 여부를 정한다. 임시 PostgreSQL에서 판정 6종 확인
 - [ ] 5-7. 토큰 금액 환산 (게이트웨이 모델 단가 확인 후). 채점 LLM 토큰은 아직 기록하지 않음
