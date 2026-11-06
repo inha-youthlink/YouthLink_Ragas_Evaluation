@@ -1,6 +1,6 @@
 # 평가 테이블을 읽어 성적표·모드별 비교를 마크다운으로 results/<dataset_version>/에 저장
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -31,6 +31,8 @@ RETRIEVAL_ROWS = (
 # 라우팅 보고서의 유형 표시 순서 (PRD "라우팅 평가")
 ROUTING_INTENTS = ("policy_list", "policy_detail", "eligibility", "comparison", "chitchat", "out_of_scope", "unclear")
 DROP_CAUSES = ("정상", "카드 선택", "후보 선택", "검색", "1차 필터", "판단 불가")
+# 같은 이름 공고 적중을 볼 지표 → 그 단계에서 보인 정책 목록 (SELECT_SAMPLES 열)
+EQUIVALENT_LISTS = {"candidate_hit": "candidate_nos", "card_hit": "card_policy_nos"}
 # RAG 규칙 기반 재정렬(상태 감점·카테고리 가산·같은 이름 제거·지역 우선) 전후 정답 정책 순위 변화
 RERANK_MOVES = ("올라감", "그대로", "내려감", "밀려남")
 # 되묻기 이유 (RAG trace.clarify_reason). 프로필과 질문 내용이 맞으면 조건 되묻기는 0건이어야 한다
@@ -80,6 +82,8 @@ SELECT_SAMPLES = sql.SQL(
     """
     SELECT sample_id, policy_no, question, answer, {metrics}, latency_ms, metadata->'errors' AS errors,
            metadata->'retrieval' AS retrieval,
+           metadata->'cards'->'candidate_nos' AS candidate_nos,
+           metadata->'card_policy_nos' AS card_policy_nos,
            metadata->'routing' AS routing,
            metadata->>'handler' AS handler,
            metadata->>'clarify_reason' AS clarify_reason,
@@ -93,10 +97,34 @@ SELECT_SAMPLES = sql.SQL(
 ).format(metrics=sql.SQL(", ").join(sql.Identifier(name) for name in METRIC_NAMES))
 
 
+# 해마다 다시 올라온 공고는 이름·지역이 같고 번호만 다르다. 정답 대신 이것을 보여 준 경우를 따로 센다
+# 이름은 golden 검수 기준과 같이 괄호·앞 연도·공백을 빼고, 지역은 시도 묶음이 같아야 한다
+SELECT_EQUIVALENT_POLICIES = r"""
+    WITH keyed AS (
+        SELECT p.policy_no,
+               regexp_replace(regexp_replace(p.policy_name, '\([^)]*\)|^\d{4}년\s*', '', 'g'), '\s', '', 'g') AS name_key,
+               (SELECT array_agg(DISTINCT v.sido_code ORDER BY v.sido_code)
+                FROM v_policy_region_resolved v WHERE v.policy_no = p.policy_no) AS sidos
+        FROM policy p
+    )
+    SELECT g.policy_no, array_agg(o.policy_no ORDER BY o.policy_no) AS equivalents
+    FROM keyed g
+    JOIN keyed o ON o.name_key = g.name_key AND o.sidos IS NOT DISTINCT FROM g.sidos
+    WHERE g.policy_no = ANY(%(policy_nos)s)
+    GROUP BY g.policy_no
+"""
+# 서비스 테이블이 없는 DB(평가 테이블만 있는 테스트 DB)에서는 같은 이름 판정을 건너뛴다
+SELECT_HAS_POLICY_TABLES = (
+    "SELECT to_regclass('public.policy') IS NOT NULL AND to_regclass('public.v_policy_region_resolved') IS NOT NULL"
+)
+
+
 class ReportData(NamedTuple):
     run: Mapping[str, Any]
     mode_averages: Sequence[Mapping[str, Any]]
     samples: Sequence[Mapping[str, Any]]
+    # 정답 policy_no → 이름·시도가 같은 공고 번호들(자기 포함). 비어 있으면 같은 이름 적중률을 만들지 않는다
+    equivalents: Mapping[str, Sequence[str]] = {}
 
 
 def report(run_id: UUID, out_dir: str | Path = DEFAULT_OUT_DIR) -> Path:
@@ -136,7 +164,20 @@ def load_report_data(conn: psycopg.Connection, run_id: UUID) -> ReportData:
         mode_averages = cur.fetchall()
         cur.execute(SELECT_SAMPLES, {"run_id": run_id})
         samples = cur.fetchall()
-    return ReportData(run=run, mode_averages=mode_averages, samples=samples)
+        equivalents = _load_equivalents(cur, samples)
+    return ReportData(run=run, mode_averages=mode_averages, samples=samples, equivalents=equivalents)
+
+
+def _load_equivalents(cur: psycopg.Cursor, samples: Sequence[Mapping[str, Any]]) -> dict[str, list[str]]:
+    # 판정은 성적표를 만드는 시점의 policy 기준이다 (run 행은 수정하지 않는다)
+    policy_nos = sorted({s["policy_no"] for s in samples if s.get("retrieval") and s.get("policy_no")})
+    if not policy_nos:
+        return {}
+    cur.execute(SELECT_HAS_POLICY_TABLES)
+    if not next(iter(cur.fetchone().values())):
+        return {}
+    cur.execute(SELECT_EQUIVALENT_POLICIES, {"policy_nos": policy_nos})
+    return {row["policy_no"]: list(row["equivalents"]) for row in cur.fetchall()}
 
 
 def report_path(run: Mapping[str, Any], out_dir: Path) -> Path:
@@ -152,7 +193,7 @@ def render(data: ReportData) -> str:
         _summary(run, data.samples),
         _conditions(run, data.samples),
         _averages(run),
-        _retrieval(data.samples),
+        _retrieval(data.samples, data.equivalents),
         _clarify(data.samples),
         _short(data.samples),
         _mode_comparison(run["dataset_version"], data.mode_averages),
@@ -277,21 +318,32 @@ def _averages(run: Mapping[str, Any]) -> str:
     return "## 지표 평균\n\n" + _table(["지표", "평균"], rows)
 
 
-def _retrieval(samples: Sequence[Mapping[str, Any]]) -> str:
+def _retrieval(samples: Sequence[Mapping[str, Any]], equivalents: Mapping[str, Sequence[str]] = {}) -> str:
     """PRD "검색 적중률 평가": 단계별 적중률과 정답 정책이 빠진 단계별 샘플 수. 검색 없는 run은 생략."""
-    metrics = [s["retrieval"] for s in samples if s.get("retrieval")]
+    searched = [s for s in samples if s.get("retrieval")]
+    metrics = [s["retrieval"] for s in searched]
     if not metrics:
         return ""
     rows = []
     for stage, name, key in RETRIEVAL_ROWS:
-        # NULL(판단할 수 없음)은 0점이 아니라 평균에서 뺀다
-        values = [m[key] for m in metrics if m.get(key) is not None]
-        rows.append([stage, name, _score(sum(values) / len(values)) if values else "-", len(values)])
+        rows.append([stage, name, *_mean_with_count(m.get(key) for m in metrics)])
+        if equivalents and key in EQUIVALENT_LISTS:
+            hits = [_equivalent_hit(s, key, equivalents) for s in searched]
+            rows.append([stage, f"{name} (같은 이름 공고 포함)", *_mean_with_count(hits)])
     causes = [_drop_cause(m) for m in metrics]
     title = f"## 검색 적중률 (검색 결과가 저장된 샘플 {len(metrics)}건)"
-    parts = [
-        title,
-        _table(["단계", "지표", "평균", "계산 대상 샘플"], rows),
+    parts = [title, _table(["단계", "지표", "평균", "계산 대상 샘플"], rows)]
+    if equivalents:
+        replaced = {
+            key: sum(1 for s in searched if s["retrieval"].get(key) == 0 and _equivalent_hit(s, key, equivalents) == 1)
+            for key in EQUIVALENT_LISTS
+        }
+        parts.append(
+            "> 같은 이름 공고 포함: 정답과 이름(괄호·앞 연도·공백 제외)과 시도가 같은 다른 공고를 보여 줘도 적중으로 센다. "
+            "해마다 다시 올라온 공고를 새 번호로 보여 준 경우다. 판정은 성적표를 만든 시점의 policy 기준이다. "
+            f"엄격 기준에서 빠졌지만 같은 이름 공고를 보여 준 샘플: 후보 {replaced['candidate_hit']}건, 카드 {replaced['card_hit']}건"
+        )
+    parts += [
         "### 정답 정책이 빠진 단계",
         _table(["원인", "샘플 수"], [[cause, causes.count(cause)] for cause in DROP_CAUSES]),
     ]
@@ -303,6 +355,22 @@ def _retrieval(samples: Sequence[Mapping[str, Any]]) -> str:
             _table(["변화", "샘플 수"], [[move, moves.count(move)] for move in RERANK_MOVES]),
         ]
     return "\n\n".join(parts)
+
+
+def _mean_with_count(values: Iterable[float | int | None]) -> list:
+    # NULL(판단할 수 없음)은 0점이 아니라 평균에서 뺀다
+    present = [v for v in values if v is not None]
+    return [_score(sum(present) / len(present)) if present else "-", len(present)]
+
+
+def _equivalent_hit(sample: Mapping[str, Any], key: str, equivalents: Mapping[str, Sequence[str]]) -> int | None:
+    strict = sample["retrieval"].get(key)
+    shown = sample.get(EQUIVALENT_LISTS[key])
+    # 목록이 저장되지 않은 run이면 엄격 기준 값을 그대로 쓴다
+    if strict is None or shown is None:
+        return strict
+    same = set(equivalents.get(sample["policy_no"], [sample["policy_no"]]))
+    return int(bool(same & set(shown)))
 
 
 def _rerank_move(m: Mapping[str, Any]) -> str | None:

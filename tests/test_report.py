@@ -325,6 +325,43 @@ def test_render_counts_samples_by_dropped_stage():
         assert f"| {cause} | 1 |" in section
 
 
+def equivalent_report_data(equivalents):
+    # 정답 TEST-0001은 엄격 기준으로 후보·카드에서 빠졌고, 같은 이름의 TEST-0002가 대신 보였다
+    replaced = sample_row(
+        "single-000001", Decimal("0.500"), retrieval=retrieval(0, 0, 1, rank=1),
+        candidate_nos=["TEST-0002", "TEST-0003"], card_policy_nos=["TEST-0002"],
+    )
+    kept = sample_row(
+        "single-000002", Decimal("0.500"), retrieval=retrieval(1, 1, 1, rank=1),
+        candidate_nos=["TEST-0001"], card_policy_nos=["TEST-0001"],
+    )
+    return report_data(run=run_row(mode="rag"), samples=[replaced, kept], equivalents=equivalents)
+
+
+def test_render_counts_same_name_policy_as_equivalent_hit():
+    text = render(equivalent_report_data({"TEST-0001": ["TEST-0001", "TEST-0002"]}))
+
+    section = text.split("## 검색 적중률")[1].split("\n## ")[0]
+    assert "| 후보 | candidate_hit | 0.500 | 2 |" in section
+    assert "| 후보 | candidate_hit (같은 이름 공고 포함) | 1.000 | 2 |" in section
+    assert "| 카드 | card_hit (같은 이름 공고 포함) | 1.000 | 2 |" in section
+    assert "후보 1건, 카드 1건" in section
+
+
+def test_render_does_not_count_other_policy_without_equivalence():
+    text = render(equivalent_report_data({"TEST-0001": ["TEST-0001"]}))
+
+    section = text.split("## 검색 적중률")[1].split("\n## ")[0]
+    assert "| 카드 | card_hit (같은 이름 공고 포함) | 0.500 | 2 |" in section
+    assert "후보 0건, 카드 0건" in section
+
+
+def test_render_without_equivalents_has_no_equivalent_rows():
+    text = render(equivalent_report_data({}))
+
+    assert "## 검색 적중률" in text and "같은 이름 공고 포함" not in text
+
+
 def test_render_counts_rank_moves_by_rerank():
     data = rag_report_data(
         retrieval(1, 1, 1, rank=4) | {"candidate_rank": 2},
