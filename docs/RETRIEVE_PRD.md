@@ -118,7 +118,7 @@ RAG는 검색된 정책을 벡터 점수로 정렬한 뒤 규칙으로 다시 �
 | 하위 질문이 여러 개인 질문 | 5~10건 |
 
 - 작성: `ragas-routing-dataset` 스킬 절차를 따른다. Claude가 초안을 쓰고(LLM API 호출 없음) 점검·검수표 작성 후 사용자 승인. 초안 `datasets/routing_candidates.jsonl`(gitignore) → 검수 → `datasets/routing_vN.jsonl`
-- 유형 판정은 RAG 분석 프롬프트(`analyze_v6.md`. 유형 판정 기준은 v3과 같음)의 유형 정의·"헷갈리는 경우"를 따른다. 대화 없이 보내므로 `policy_detail`·`eligibility`·`comparison` 질문에는 정책 이름을 넣고, 지시어만 있는 질문은 `unclear`
+- 유형 판정은 RAG 분석 프롬프트(routing_v1은 `analyze_v6.md`, routing_v2는 용어 질문 규칙이 추가된 `analyze_v7.md`)의 유형 정의·"헷갈리는 경우"를 따른다. 대화 없이 보내므로 `policy_detail`·`eligibility`·`comparison` 질문에는 정책 이름을 넣고, 지시어만 있는 질문은 `unclear`
 - 경계 사례는 프롬프트 규칙으로 정답이 분명한 것만 넣는다 (기준 vs 해당 여부, 인사 + 질문, 지시어만 있는 질문). 규칙끼리 충돌하거나 해석이 갈리는 질문은 기대값이 틀릴 수 있어 넣지 않는다
 - RAG 분석 프롬프트에 들어 있는 예시 질문은 넣지 않는다 (본 적 있는 질문이라 점수가 높게 나옴)
 
@@ -158,3 +158,4 @@ RAG는 검색된 정책을 벡터 점수로 정렬한 뒤 규칙으로 다시 �
 - [x] R-11. 후보 재정렬 평가 (`candidate_rank` 계산·저장, 보고서에 재정렬 전후 순위 변화 표) + 테스트
 - [ ] R-12. RAG에 재정렬 전 정책 순서(trace) 요청 → 반영되면 평가의 재계산 대신 그 값 사용
 - [x] R-13. 같은 이름 공고 동등 적중 (`card_hit`·`candidate_hit`, 보고서에서 판정·표시, 엄격 지표 유지) + 테스트, 운영 DB로 golden_v3 run 재생성 확인
+- [x] R-14. `routing_v2.jsonl` 확정 (100건: 유형 7종 각 13건 + 여러 개 9건, 경계 사례 46건. 기준 `analyze_v7`. routing_v1 만점으로 오분류를 못 잡아 어렵게 구성, 채점 방식은 그대로)

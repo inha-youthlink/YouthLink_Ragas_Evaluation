@@ -1,0 +1,100 @@
+{"sample_id": "route-000001", "question": "면접 볼 때 입을 정장 무료로 빌려주는 곳 있어?", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000002", "question": "전세사기 피해 입은 청년한테 주는 지원 있어요?", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:범위밖유사] 피해자 지원 정책을 찾는 질문이라 list"}
+{"sample_id": "route-000003", "question": "대전 사는 29살 백수인데 받을 수 있는 거 있어?", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:조건+목록] 정책 이름 없이 받을 수 있는 정책을 찾으면 list (v7 예시 7)"}
+{"sample_id": "route-000004", "question": "지금 신청 가능한 청년 해외 봉사 프로그램만 보여줘", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000005", "question": "청년 운전면허 취득 비용 지원 있나요", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000006", "question": "강원도 청년 귀농 정착 지원 뭐 있어요?", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000007", "question": "대학원생도 받을 수 있는 연구 장려금 있어?", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:조건+목록] 신분을 말해도 정책 이름이 없고 여러 정책을 찾으면 list (v7 예시 7)"}
+{"sample_id": "route-000008", "question": "공무원 시험 준비하는 사람한테 주는 지원", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:정책대상] 정책 대상이 주제인 목록 질문 (v7 사용자 조건 규칙)"}
+{"sample_id": "route-000009", "question": "마감된 것까지 포함해서 청년 이사비 지원 알려줘", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000010", "question": "프리랜서 청년 소득 지원 정책 리스트", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000011", "question": "안녕하세요 혹시 청년 치과 치료비 지원도 있나요?", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:인사+질문] 인사는 무시하고 질문만 분류"}
+{"sample_id": "route-000012", "question": "청년도약계좌 말고 다른 저축 지원 뭐 있어?", "expected_intent": ["policy_list"], "reviewed": true, "note": "[경계:정책명+목록] 정책 이름이 있어도 다른 정책을 찾으면 list"}
+{"sample_id": "route-000013", "question": "결혼 앞둔 청년 커플 지원책", "expected_intent": ["policy_list"], "reviewed": true}
+{"sample_id": "route-000014", "question": "K-패스가 뭐예요?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:정책명형] 정책 이름처럼 보이면 용어가 아니라 정책 질문 (v7 82행)"}
+{"sample_id": "route-000015", "question": "기후동행카드 청년 할인 얼마나 돼?", "expected_intent": ["policy_detail"], "reviewed": true}
+{"sample_id": "route-000016", "question": "국민내일배움카드 자부담 비율 알려줘", "expected_intent": ["policy_detail"], "reviewed": true}
+{"sample_id": "route-000017", "question": "청년월세 특별지원에서 말하는 무주택자가 무슨 뜻이에요?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:용어+정책] 정책에 나오는 용어의 뜻은 policy_detail (v7 69행)"}
+{"sample_id": "route-000018", "question": "국민취업지원제도 1유형 소득 기준이 뭐야?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:기준vs해당] 기준 자체를 물으면 policy_detail"}
+{"sample_id": "route-000019", "question": "청년전용 버팀목전세자금대출 금리랑 한도, 신청 방법 다 알려줘", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:여러항목] 같은 정책의 여러 항목은 하위 질문 하나"}
+{"sample_id": "route-000020", "question": "미정리유물 정리 사업 참여 자격 기준 알려주세요", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:낯선정책명] golden_v3 000069형. 헷갈리면 정책 이름으로 봄 (v7 82행)"}
+{"sample_id": "route-000021", "question": "청년층 생활시간 조사 결과 공개 사업은 어떤 자료를 제공해?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:낯선정책명] golden_v3 000126형. 사업 이름을 지목해 내용을 물음"}
+{"sample_id": "route-000022", "question": "산림일자리 발전소 사업은 뭘 지원하는 거야?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:낯선정책명] 청년 정책처럼 들리지 않는 사업 이름"}
+{"sample_id": "route-000023", "question": "감사합니다. 그럼 예비창업패키지 지원금은 최대 얼마예요?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:인사+질문] 감사 인사 뒤 질문만 분류 (v7 78행)"}
+{"sample_id": "route-000024", "question": "희망두배 청년통장 만기 때 받는 금액", "expected_intent": ["policy_detail"], "reviewed": true}
+{"sample_id": "route-000025", "question": "청년마음건강지원사업 신청하려면 어디로 가야 돼?", "expected_intent": ["policy_detail"], "reviewed": true}
+{"sample_id": "route-000026", "question": "청년내일저축계좌에 나오는 차상위계층은 무슨 말이에요?", "expected_intent": ["policy_detail"], "reviewed": true, "note": "[경계:용어+정책] 정책 이름과 함께 용어 뜻을 물음 (v7 69행)"}
+{"sample_id": "route-000027", "question": "연봉 4,200만 원인데 청년도약계좌 가입할 수 있어요?", "expected_intent": ["eligibility"], "reviewed": true, "note": "[경계:기준vs해당] 자기가 해당하는지 물으면 eligibility"}
+{"sample_id": "route-000028", "question": "국민취업지원제도 받는 중인데 서울 청년수당도 같이 받을 수 있어?", "expected_intent": ["eligibility"], "reviewed": true, "note": "[경계:동시수혜] 여러 정책을 함께 받을 수 있는지는 eligibility (v7 70행)"}
+{"sample_id": "route-000029", "question": "대학 휴학 중인데 국가근로장학금 신청 가능해요?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000030", "question": "34살인데 청년월세 특별지원 받을 수 있나?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000031", "question": "부모님이랑 같이 사는데 청년전용 버팀목전세자금대출 돼요?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000032", "question": "청년도약계좌랑 청년 주택드림 청약통장 동시에 가입할 수 있어?", "expected_intent": ["eligibility"], "reviewed": true, "note": "[경계:동시수혜] 두 정책 이름이 있어도 비교가 아니라 함께 받을 수 있는지 (v7 70행)"}
+{"sample_id": "route-000033", "question": "자영업 하고 있는데 국민내일배움카드 발급 대상인가요?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000034", "question": "고마워요 근데 저 군인인데 청년내일저축계좌 가입 돼요?", "expected_intent": ["eligibility"], "reviewed": true, "note": "[경계:인사+질문] 인사는 무시하고 질문만 분류"}
+{"sample_id": "route-000035", "question": "주택 청약 당첨된 적 있으면 청년 주택드림 청약통장 못 만들어?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000036", "question": "예비창업패키지 이미 받았는데 초기창업패키지 또 신청할 수 있어요?", "expected_intent": ["eligibility"], "reviewed": true, "note": "[경계:동시수혜] 앞 정책을 받은 뒤 다른 정책 신청 가능 여부"}
+{"sample_id": "route-000037", "question": "졸업 유예 중인 대학생도 공공기관 맞춤형 취업지원사업 참여 가능?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000038", "question": "경기도로 이사 온 지 3개월 됐는데 경기 청년 기본소득 받을 수 있나요?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000039", "question": "육아휴직 중이면 청년마음건강지원사업 신청 안 되나요?", "expected_intent": ["eligibility"], "reviewed": true}
+{"sample_id": "route-000040", "question": "K-패스랑 기후동행카드 중에 뭐가 더 이득이야?", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000041", "question": "청년도약계좌와 청년내일저축계좌 차이점 알려주세요", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000042", "question": "국민취업지원제도랑 서울 청년수당 지원 금액 비교해줘", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000043", "question": "버팀목 전세대출이랑 중기청 전세대출 중 금리 낮은 거?", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000044", "question": "청년월세 특별지원이랑 서울 청년월세지원 차이", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000045", "question": "월세 지원이랑 전세 지원 중에 뭐가 나아?", "expected_intent": ["comparison"], "reviewed": true, "note": "[경계:지목없는비교] 정책 이름 없이 두 종류를 비교. RAG 10주차 계획의 '지목 없는 비교' 예시"}
+{"sample_id": "route-000046", "question": "예비창업패키지랑 청년창업사관학교 어느 쪽이 지원 규모가 커?", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000047", "question": "희망두배 청년통장, 청년내일저축계좌, 청년도약계좌 셋 비교해줘", "expected_intent": ["comparison"], "reviewed": true, "note": "[경계:셋비교] 세 정책 비교도 하위 질문 하나"}
+{"sample_id": "route-000048", "question": "국가근로장학금이랑 국가장학금 뭐가 달라요?", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000049", "question": "안녕하세요, 내일배움카드랑 K-디지털 트레이닝 중 뭐 들을지 고민인데 차이가 뭐예요?", "expected_intent": ["comparison"], "reviewed": true, "note": "[경계:인사+질문] 인사·배경 설명은 무시하고 비교 질문만 분류"}
+{"sample_id": "route-000050", "question": "청년마음건강지원사업이랑 전국민 마음투자 지원사업 중 상담 횟수 많은 쪽은?", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000051", "question": "청년 주택드림 청약통장 vs 일반 주택청약종합저축", "expected_intent": ["comparison"], "reviewed": true}
+{"sample_id": "route-000052", "question": "구직자 취업도약 플러스 프로그램이랑 국민취업지원제도 중에 저한테 뭐가 나을까요?", "expected_intent": ["comparison"], "reviewed": true, "note": "[경계:비교vs해당] '저한테'가 있어도 어느 쪽이 나은지 묻는 비교"}
+{"sample_id": "route-000053", "question": "안녕! 넌 뭐 하는 챗봇이야?", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000054", "question": "고마워 많은 도움이 됐어", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000055", "question": "정책 추천 받으려면 어떻게 물어보면 돼?", "expected_intent": ["chitchat"], "reviewed": true, "note": "[경계:사용법] 정책을 찾지 않고 챗봇 사용법을 물음"}
+{"sample_id": "route-000056", "question": "카드 번호로 물어봐도 알아들어?", "expected_intent": ["chitchat"], "reviewed": true, "note": "[경계:사용법] 챗봇 사용법"}
+{"sample_id": "route-000057", "question": "답변을 좀 더 짧게 해줄 수 있어?", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000058", "question": "ㅋㅋㅋ 오케이 알겠어", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000059", "question": "좋은 아침이에요", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000060", "question": "너 사람이야 AI야?", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000061", "question": "수고했어 잘 자", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000062", "question": "이 서비스 무료로 쓰는 거 맞죠?", "expected_intent": ["chitchat"], "reviewed": true, "note": "[경계:사용법] 서비스 이용에 대한 질문"}
+{"sample_id": "route-000063", "question": "어떤 지역 정책까지 알려줄 수 있어요?", "expected_intent": ["chitchat"], "reviewed": true, "note": "[경계:사용법] 정책을 찾는 게 아니라 챗봇이 다루는 범위를 물음"}
+{"sample_id": "route-000064", "question": "대화 기록 지우려면 어떻게 해?", "expected_intent": ["chitchat"], "reviewed": true, "note": "[경계:사용법] 챗봇 사용법"}
+{"sample_id": "route-000065", "question": "반가워요 앞으로 자주 올게요", "expected_intent": ["chitchat"], "reviewed": true}
+{"sample_id": "route-000066", "question": "소득인정액이 뭐예요?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:용어] 대화 없이 용어 뜻만 물으면 out_of_scope (v7 80행)"}
+{"sample_id": "route-000067", "question": "무주택 세대구성원이 무슨 뜻이야?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:용어] 대화 없이 용어 뜻만 물음 (v7 80행)"}
+{"sample_id": "route-000068", "question": "고용보험 피보험자격이 뭔 말이에요?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:용어] 대화 없이 용어 뜻만 물음 (v7 80행)"}
+{"sample_id": "route-000069", "question": "인플레이션이 뭐야?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:일반용어] 청년 정책과 관계없는 일반 용어 (v7 81행)"}
+{"sample_id": "route-000070", "question": "면접 볼 때 어떤 옷 입고 가는 게 좋아?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:범위밖유사] 정장 대여 지원이 아니라 조언 요청 (route-000001과 짝)"}
+{"sample_id": "route-000071", "question": "자기소개서 첨삭 좀 해줘", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000072", "question": "요즘 오를 만한 주식 추천해줘", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000073", "question": "파이썬으로 웹 크롤러 만드는 법 알려줘", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000074", "question": "월세 계약할 때 확인해야 할 것들 알려줘", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:범위밖유사] 주거 주제지만 지원 정책이 아닌 일반 조언 요청"}
+{"sample_id": "route-000075", "question": "부산 가는 KTX 시간표 알려줘", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000076", "question": "토익 900점 넘으려면 어떻게 공부해야 해?", "expected_intent": ["out_of_scope"], "reviewed": true, "note": "[경계:범위밖유사] 교육 주제지만 지원 정책이 아닌 공부법"}
+{"sample_id": "route-000077", "question": "다음 문장 영어로 번역해줘: 저는 취업 준비생입니다", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000078", "question": "주말에 볼 만한 영화 추천해줘", "expected_intent": ["out_of_scope"], "reviewed": true}
+{"sample_id": "route-000079", "question": "그건 어디서 신청해요?", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000080", "question": "세 번째 정책 신청 방법 알려줘", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:지시어] 앞 턴이 없어 가리킬 정책이 없음"}
+{"sample_id": "route-000081", "question": "아까 말한 정책 서류 뭐 필요해?", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000082", "question": "이거 나도 받을 수 있어?", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:지시어] eligibility처럼 보이지만 정책을 정할 수 없음"}
+{"sample_id": "route-000083", "question": "둘 중에 뭐가 나아?", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:지시어] comparison처럼 보이지만 대상이 없음"}
+{"sample_id": "route-000084", "question": "그럼 그건 몇 살까지 돼요?", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000085", "question": "거기 홈페이지 주소 알려줘", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000086", "question": "저번에 봤던 그 지원금 마감됐어?", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000087", "question": "위에 거 조건 다시 말해줘", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000088", "question": "그 정책이랑 이거 같이 돼?", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:지시어] 동시 수혜 질문 형태지만 정책을 정할 수 없음"}
+{"sample_id": "route-000089", "question": "고마워요. 근데 그거 언제 발표해요?", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:인사+질문] 인사는 무시. 남은 질문은 지시어만 있음"}
+{"sample_id": "route-000090", "question": "첫 번째랑 세 번째 차이 알려줘", "expected_intent": ["unclear"], "reviewed": true, "note": "[경계:지시어] 순서로 가리키지만 앞 턴이 없음"}
+{"sample_id": "route-000091", "question": "그거 말이야 그거", "expected_intent": ["unclear"], "reviewed": true}
+{"sample_id": "route-000092", "question": "국민취업지원제도 신청 방법 알려주고, 면접 정장 빌려주는 지원도 있어?", "expected_intent": ["policy_detail", "policy_list"], "reviewed": true, "note": "상세 + 목록 2개"}
+{"sample_id": "route-000093", "question": "청년내일저축계좌 나도 가입할 수 있어? 26살 직장인이야. 그리고 비슷한 자산 형성 지원 또 뭐 있어?", "expected_intent": ["eligibility", "policy_list"], "reviewed": true, "note": "해당 여부 + 목록 2개"}
+{"sample_id": "route-000094", "question": "K-패스랑 기후동행카드 차이가 뭐야? 그리고 청년 월세 지원도 알려줘", "expected_intent": ["comparison", "policy_list"], "reviewed": true, "note": "비교 + 목록 2개"}
+{"sample_id": "route-000095", "question": "청년월세 특별지원 서류 뭐 내야 돼? 아 그리고 점심 메뉴 추천 좀", "expected_intent": ["policy_detail", "out_of_scope"], "reviewed": true, "note": "[경계:섞인의도] 상세 + 범위 밖 2개 (의도가 달라 나눔)"}
+{"sample_id": "route-000096", "question": "경기 청년 기본소득 지급액 얼마야? 그리고 이거랑 서울 청년수당 같이 받을 수 있어?", "expected_intent": ["policy_detail", "eligibility"], "reviewed": true, "note": "[경계:섞인의도] 상세 + 동시 수혜. '이거'는 같은 질문 앞부분의 정책"}
+{"sample_id": "route-000097", "question": "창업 지원금 뭐 있는지 알려주고, 예비창업패키지 신청 기간도 알려줘", "expected_intent": ["policy_list", "policy_detail"], "reviewed": true, "note": "목록 + 상세 2개"}
+{"sample_id": "route-000098", "question": "내일배움카드 지원 금액 알려줘. 자격증 응시료 지원도 있어? 그리고 토익 공부법도 알려줘", "expected_intent": ["policy_detail", "policy_list", "out_of_scope"], "reviewed": true, "note": "[경계:3개] 상세 + 목록 + 범위 밖 (최대 3개)"}
+{"sample_id": "route-000099", "question": "대학생인데 대학생 천원의 아침밥 이용할 수 있어? 그리고 희망두배 청년통장 신청 방법도 알려줘", "expected_intent": ["eligibility", "policy_detail"], "reviewed": true, "note": "해당 여부 + 다른 정책 상세 2개"}
+{"sample_id": "route-000100", "question": "고마워요! 청년마음건강지원사업 상담 몇 회까지 돼요? 그리고 다른 심리상담 지원도 있어요?", "expected_intent": ["policy_detail", "policy_list"], "reviewed": true, "note": "[경계:인사+복합] 인사는 무시하고 질문 2개만 (3개 아님)"}
