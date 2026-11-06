@@ -56,6 +56,7 @@ golden은 RAG가 검색해서 정답 정책을 찾아야만 답할 수 있는 �
 | 원천 텍스트 | `policy_name`, `description`, `support_content`, 지역(`v_policy_region_resolved`의 시도·시군구 이름. 시군구 3곳까지 나열, 넘으면 시도, 17개 시도 전부면 "전국". View가 없으면 생략), `min_age`/`max_age`(하한 1세 이하·상한 99세 이상은 API가 채운 "제한 없음" 값으로 보고 생략), `income_condition_code`(무관 / 연소득 `min_income`~`max_income` 만원 / 기타 `income_etc`), `application_start_date`/`application_end_date`(상시 0057002면 "상시"), `application_method`, `submission_documents`, `screening_method`, `additional_qualification`, `participation_exclusion` |
 | 입력 변환 | 정책 1건 → `Document` 1개 (`metadata`: `policy_no`, `source_updated_at`) |
 | 정책 표본 | `--policy-limit N`: 정책 번호순 정렬 후 고정 시드로 N건 추출 (분석 비용 제한, 재실행 시 같은 표본 → 분석 캐시 재사용) |
+| 보충 생성 | `--exclude JSONL`(여러 번): 지정한 데이터셋의 `policy_no`를 표본 추출 전에 대상에서 뺌. 확정본에서 빠진 샘플을 채울 때 기존 정책이 다시 나오지 않게 한다 |
 | 페르소나 | 청년정책 사용자 5명 고정 (대학생, 취업준비생, 사회초년생, 청년 창업자, 신혼부부 청년). 페르소나가 정책 대상이 아니면 정답이 대상 여부부터 밝히도록 질문·정답 생성 프롬프트에 지시 추가 |
 | 생성기 | `TestsetGenerator(llm, embedding_model).generate_with_langchain_docs(docs, testset_size, query_distribution)` |
 | 질문 유형 | `[(SingleHopSpecificQuerySynthesizer(llm), 1.0)]` |
@@ -381,3 +382,5 @@ RAG가 검색하지 않고 고정 문구로 되묻는 응답(`trace.handler = "c
 - [x] 8-1. `GoldenProfile`: golden `profile`을 RAG `Profile` 필드로 검사 (모르는 키·형식 오류 로드 실패), RAG 요청에는 채운 필드만 + 테스트
 - [x] 8-2. `profile` 명령: 정답 정책의 시도·나이로 프로필 채운 후보 생성, 검수 표시 + 테스트
 - [x] 8-3. golden_v1 프로필 후보 검수 → `golden_v2.jsonl` 확정 (사용자 승인, 100건. 오탐 2건 프로필 수정, 제외 0건)
+- [x] 9-1. `generate --exclude`: 지정한 데이터셋의 정책을 생성 대상에서 제외 + 테스트
+- [ ] 9-2. 운영 DB 기준 golden_v2 점검 (삭제 2·변경 1·"지금 신청" 질문 3건 제외) → 보충 생성·검수 → `golden_v3.jsonl` 100건 확정

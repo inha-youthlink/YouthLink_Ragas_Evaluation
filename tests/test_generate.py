@@ -185,6 +185,45 @@ def test_generate_passes_only_sampled_policies_to_generator(tmp_path, monkeypatc
     assert summary.written == 1
 
 
+def write_golden(path, *policy_nos_):
+    records = [
+        {"sample_id": f"single-{i:06d}", "policy_no": no, "question": "가짜 질문", "ground_truth": "가짜 정답",
+         "reference_contexts": ["가짜 원문"], "synthesizer_name": "single_hop_specific_query_synthesizer",
+         "source_updated_at": UPDATED_AT, "reviewed": True}
+        for i, no in enumerate(policy_nos_, 1)
+    ]
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
+    return str(path)
+
+
+def test_generate_excludes_policies_in_given_datasets_before_sampling(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(generate, "get_settings", fake_settings)
+    monkeypatch.setattr(generate, "_load_target_documents", lambda settings: MANY_DOCS)
+
+    def fake_run(documents, testset_size, settings):
+        seen.extend(documents)
+        return [row([documents[0].page_content])]
+
+    monkeypatch.setattr(generate, "_run_generator", fake_run)
+    first = write_golden(tmp_path / "a.jsonl", "TEST-0000", "TEST-0001")
+    second = write_golden(tmp_path / "b.jsonl", "TEST-0001", "TEST-0002")
+
+    generate.generate(testset_size=3, out_path=str(tmp_path / "c.jsonl"), exclude_paths=[first, second])
+
+    assert policy_nos(seen) == policy_nos(MANY_DOCS[3:])
+
+
+def test_generate_fails_before_llm_when_every_policy_is_excluded(tmp_path, monkeypatch):
+    monkeypatch.setattr(generate, "get_settings", fake_settings)
+    monkeypatch.setattr(generate, "_load_target_documents", lambda settings: DOCS)
+    monkeypatch.setattr(generate, "_run_generator", lambda *a: pytest.fail("LLM을 부르면 안 됨"))
+    used = write_golden(tmp_path / "a.jsonl", "TEST-0001", "TEST-0002")
+
+    with pytest.raises(ValueError, match="대상 정책이 없어"):
+        generate.generate(testset_size=3, out_path=str(tmp_path / "c.jsonl"), exclude_paths=[used])
+
+
 def test_youth_personas_have_unique_names_and_descriptions():
     names = [p.name for p in YOUTH_PERSONAS]
 

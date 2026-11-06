@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--policy-limit", type=positive_int, default=None, help="대상 정책 중 고정 시드로 N건만 뽑아 생성 (분석 비용 제한)"
     )
+    generate_parser.add_argument(
+        "--exclude", action="append", default=[], metavar="JSONL", help="이 데이터셋의 정책은 생성 대상에서 뺌 (여러 번 지정 가능)"
+    )
 
     profile_parser = sub.add_parser("profile", help="golden 샘플에 정답 정책의 시도·나이로 프로필을 채운 후보 생성")
     profile_parser.add_argument("--golden", required=True)
@@ -71,7 +74,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
 
     if args.command == "generate":
-        summary = generate.generate(testset_size=args.testset_size, out_path=args.out, policy_limit=args.policy_limit)
+        summary = generate.generate(
+            testset_size=args.testset_size, out_path=args.out, policy_limit=args.policy_limit, exclude_paths=args.exclude
+        )
         print(f"후보 {summary.written}건 저장, 정책 매칭 실패·빈 값 {summary.dropped}건 제외: {args.out}")
     elif args.command == "profile":
         summary = profile.profile(args.golden, args.out)

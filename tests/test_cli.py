@@ -19,6 +19,13 @@ def test_generate_uses_default_options():
     assert args.testset_size == 100
     assert args.out == "datasets/golden_candidates.jsonl"
     assert args.policy_limit is None
+    assert args.exclude == []
+
+
+def test_generate_collects_repeated_exclude_paths():
+    args = build_parser().parse_args(["generate", "--exclude", "datasets/a.jsonl", "--exclude", "datasets/b.jsonl"])
+
+    assert args.exclude == ["datasets/a.jsonl", "datasets/b.jsonl"]
 
 
 def test_generate_parses_policy_limit():
@@ -178,7 +185,9 @@ def test_main_prints_generate_counts(monkeypatch, capsys):
     main(["generate", "--testset-size", "10", "--out", "datasets/candidates.jsonl"])
 
     out = capsys.readouterr().out
-    assert calls == [{"testset_size": 10, "out_path": "datasets/candidates.jsonl", "policy_limit": None}]
+    assert calls == [
+        {"testset_size": 10, "out_path": "datasets/candidates.jsonl", "policy_limit": None, "exclude_paths": []}
+    ]
     assert "3건" in out and "1건" in out and "datasets/candidates.jsonl" in out
 
 

@@ -23,7 +23,7 @@ from ragas.testset.synthesizers.single_hop.specific import SingleHopSpecificQuer
 from ragas.testset.transforms import apply_transforms, default_transforms
 
 from ragas_eval.config import Settings, get_settings
-from ragas_eval.dataset.dataset import GoldenSample
+from ragas_eval.dataset.dataset import GoldenSample, load_golden
 from ragas_eval.policy_source.policy_source import load_documents
 from ragas_eval.scorer.scorer import make_llm
 
@@ -135,10 +135,15 @@ def write_jsonl(records: Iterable[Mapping[str, Any]], path: str | Path) -> None:
     path.write_text("".join(lines), encoding="utf-8")
 
 
-def generate(testset_size: int, out_path: str, policy_limit: int | None = None) -> GenerateSummary:
+def generate(
+    testset_size: int, out_path: str, policy_limit: int | None = None, exclude_paths: Sequence[str] = ()
+) -> GenerateSummary:
     _check_out_path(Path(out_path))
     settings = get_settings()
-    documents = sample_documents(_load_target_documents(settings), policy_limit)
+    # 기존 데이터셋을 보충할 때 이미 쓴 정책이 다시 나오지 않도록 표본 추출 전에 뺀다
+    used = {s.policy_no for path in exclude_paths for s in load_golden(path)}
+    targets = [d for d in _load_target_documents(settings) if d.metadata["policy_no"] not in used]
+    documents = sample_documents(targets, policy_limit)
     if not documents:
         raise ValueError("대상 정책이 없어 생성하지 않음 (description이 있고 신청 기간이 남은 정책 0건)")
     rows = _run_generator(documents, testset_size, settings)
