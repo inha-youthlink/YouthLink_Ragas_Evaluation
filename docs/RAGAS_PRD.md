@@ -60,6 +60,7 @@ golden은 RAG가 검색해서 정답 정책을 찾아야만 답할 수 있는 �
 | 페르소나 | 청년정책 사용자 5명 고정 (대학생, 취업준비생, 사회초년생, 청년 창업자, 신혼부부 청년). 페르소나가 정책 대상이 아니면 정답이 대상 여부부터 밝히도록 질문·정답 생성 프롬프트에 지시 추가 |
 | 생성기 | `TestsetGenerator(llm, embedding_model).generate_with_langchain_docs(docs, testset_size, query_distribution)` |
 | 질문 유형 | `[(SingleHopSpecificQuerySynthesizer(llm), 1.0)]` |
+| 분석 변환 | 정책 1건 = 노드 1개로 고정 (`whole_document_transforms`, ragas `default_transforms`의 101~500토큰 분기). 500토큰 넘는 문서가 25% 이상일 때 ragas가 고르는 제목 분할 분기는 짧은 문서가 섞이면 `HeadlineSplitter`가 멈춰(0.4.3) 쓰지 않는다 |
 | 한국어 | 생성기 프롬프트 한국어 adapt |
 | 모델 | `GEN_MODEL`, `EMBEDDING_MODEL` (`bedrock-titan-embed-v2`) |
 | `policy_no` 복원 | `reference_contexts`가 포함된 `Document.page_content` 매칭 (생성기가 문서를 분할할 수 있어 일치가 아닌 포함 검사) |

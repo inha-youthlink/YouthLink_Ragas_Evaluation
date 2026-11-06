@@ -20,7 +20,17 @@ from ragas.testset.graph import KnowledgeGraph, Node, NodeType
 from ragas.testset.persona import Persona
 from ragas.testset.synthesizers.prompts import PersonaThemesMapping
 from ragas.testset.synthesizers.single_hop.specific import SingleHopSpecificQuerySynthesizer
-from ragas.testset.transforms import apply_transforms, default_transforms
+from ragas.testset.transforms import (
+    CosineSimilarityBuilder,
+    CustomNodeFilter,
+    EmbeddingExtractor,
+    OverlapScoreBuilder,
+    Parallel,
+    SummaryExtractor,
+    apply_transforms,
+)
+from ragas.testset.transforms.extractors.llm_based import NERExtractor, ThemesExtractor
+from ragas.utils import num_tokens_from_string
 
 from ragas_eval.config import Settings, get_settings
 from ragas_eval.dataset.dataset import GoldenSample, load_golden
@@ -229,10 +239,45 @@ def build_knowledge_graph(
         for doc in documents
     ]
     kg = KnowledgeGraph(nodes=nodes)
-    apply_transforms(kg, default_transforms(documents=list(documents), llm=llm, embedding_model=embeddings))
+    apply_transforms(kg, whole_document_transforms(llm=llm, embeddings=embeddings))
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     kg.save(cache_path)
     return kg
+
+
+def whole_document_transforms(*, llm: Any, embeddings: Any) -> list:
+    """정책 1건을 노드 1개로 둔 채 분석한다 (ragas default_transforms의 101~500토큰 분기와 같다).
+
+    ragas는 500토큰 넘는 문서가 25% 이상이면 제목 분할 분기로 바꾸는데, 짧은 문서가 섞이면 HeadlineSplitter가
+    "'headlines' property not found"로 멈춘다(0.4.3, golden_v3 보충 생성에서 발생). golden_v1·v2와 같은 분기로 고정한다.
+    """
+
+    def longer_than_100(node: Node) -> bool:
+        return node.type == NodeType.DOCUMENT and num_tokens_from_string(node.properties["page_content"]) > 100
+
+    return [
+        SummaryExtractor(llm=llm, filter_nodes=longer_than_100),
+        CustomNodeFilter(llm=llm),
+        Parallel(
+            EmbeddingExtractor(
+                embedding_model=embeddings,
+                property_name="summary_embedding",
+                embed_property_name="summary",
+                filter_nodes=longer_than_100,
+            ),
+            ThemesExtractor(llm=llm, filter_nodes=lambda node: node.type == NodeType.DOCUMENT),
+            NERExtractor(llm=llm),
+        ),
+        Parallel(
+            CosineSimilarityBuilder(
+                property_name="summary_embedding",
+                new_property_name="summary_similarity",
+                threshold=0.5,
+                filter_nodes=longer_than_100,
+            ),
+            OverlapScoreBuilder(threshold=0.01),
+        ),
+    ]
 
 
 def _run_generator(documents: Sequence[Document], testset_size: int, settings: Settings) -> list[dict]:

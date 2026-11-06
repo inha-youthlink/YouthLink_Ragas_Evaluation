@@ -452,6 +452,26 @@ def test_cache_key_changes_with_content_and_models():
     assert base != generate.kg_cache_key([DOCS[0], doc("TEST-0002", "바뀐 정책 본문")], "gen-a", "emb-a")
 
 
+def transform_shape(transforms):
+    from ragas.testset.transforms import Parallel
+
+    return [
+        transform_shape(t.transformations) if isinstance(t, Parallel) else type(t).__name__ for t in transforms
+    ]
+
+
+def test_whole_document_transforms_match_ragas_short_document_branch():
+    from ragas.testset.transforms import default_transforms
+
+    # 101~500토큰 문서만 있으면 ragas는 문서를 나누지 않는 분기를 고른다 (golden_v1·v2 생성 때와 같은 분기)
+    short_docs = [doc(f"TEST-{i:04d}", "청년 월세 지원 " * 30) for i in range(4)]  # 약 270토큰
+
+    expected = default_transforms(documents=short_docs, llm=None, embedding_model=None)
+
+    assert transform_shape(generate.whole_document_transforms(llm=None, embeddings=None)) == transform_shape(expected)
+    assert "HeadlineSplitter" not in str(transform_shape(expected))
+
+
 def test_build_knowledge_graph_analyzes_once_then_loads_cache(tmp_path, monkeypatch):
     calls = []
 
@@ -459,7 +479,7 @@ def test_build_knowledge_graph_analyzes_once_then_loads_cache(tmp_path, monkeypa
         calls.append(len(kg.nodes))
         kg.nodes[0].properties["summary"] = "분석 결과"
 
-    monkeypatch.setattr(generate, "default_transforms", lambda **kwargs: ["fake-transform"])
+    monkeypatch.setattr(generate, "whole_document_transforms", lambda **kwargs: ["fake-transform"])
     monkeypatch.setattr(generate, "apply_transforms", fake_apply)
     cache = tmp_path / "cache" / "kg.json"
 
